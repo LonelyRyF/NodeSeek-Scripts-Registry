@@ -1,59 +1,33 @@
-// ==UserScript==
-// @name         NodeSeek 瀑布流 & 评论引用跳转修复 (子模块)
-// @description  提前预加载下一页数据，实现无缝瀑布流；修复跨页引用评论导致页面刷新的问题。
-// @namespace    http://www.nodeseek.com/
-// @version      1.6.0
-// @match        *://www.nodeseek.com/*
-// @match        *://www.deepflood.com/*
-// @run-at       document-idle
-// @grant        GM_getValue
-// @grant        GM_setValue
-// @license      GPL-3.0
-// ==/UserScript==
-
-(function () {
+// 云端加载的瀑布流功能模块
+(function(api, MODULE_ID) {
     'use strict';
 
-    const MODULE_ID = 'ns_waterfall';
     const MODULE_NAME = '瀑布流 & 引用跳转';
     const MODULE_VERSION = '1.6.0';
-    const MODULE_DESC = '提前预加载下一页数据，实现无缝瀑布流；修复跨页引用评论导致页面刷新的问题。';
 
     const DEFAULT_CONFIG = {
-    enableWaterfall: true,
-    enableRefFix: true,
-    listThreshold: 6000,
-    postThreshold: 4000,
-    scrollThrottle: 100,
-    smoothScroll: false,
-    highlightDuration: 1500
-};
-
-const CONFIG_SCHEMA = [
-    { key: 'enableWaterfall', type: 'switch', label: '瀑布流自动加载', description: '滚动到底部时自动加载下一页内容', inlineLabel: '启用', default: true },
-    { key: 'enableRefFix', type: 'switch', label: '评论引用跳转修复', description: '修复跨页引用评论导致页面刷新的问题，改为页内跳转', inlineLabel: '启用', default: true },
-    { key: 'listThreshold', type: 'number', label: '列表页预加载距离 (px)', description: '距离页面底部多少像素时开始加载下一页（列表页）', min: 1000, max: 20000, step: 500, default: 6000 },
-    { key: 'postThreshold', type: 'number', label: '帖子页预加载距离 (px)', description: '距离页面底部多少像素时开始加载下一页（帖子页）', min: 1000, max: 20000, step: 500, default: 4000 },
-    { key: 'scrollThrottle', type: 'number', label: '滚动检测间隔 (ms)', description: '滚动事件节流时间，值越小检测越灵敏', min: 50, max: 500, step: 50, default: 100 },
-    { key: 'smoothScroll', type: 'switch', label: '平滑滚动', description: '引用跳转时使用平滑滚动动画，关闭则瞬间跳转', inlineLabel: '启用', default: false },
-    { key: 'highlightDuration', type: 'number', label: '引用高亮时长 (ms)', description: '跳转到引用楼层后的高亮闪烁持续时间', min: 500, max: 5000, step: 500, default: 1500 }
-];
-
-    const getConfig = () => ({ ...DEFAULT_CONFIG, ...GM_getValue('ns_waterfall_config', {}) });
-    const saveConfig = (data) => GM_setValue('ns_waterfall_config', data);
-
-    // === 等待基座就绪后注册 ===
-    const waitForUI = (cb, maxWait = 10000) => {
-        const _win = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
-        if (_win.NodeSeekUI) return cb(_win.NodeSeekUI);
-        const start = Date.now();
-        const timer = setInterval(() => {
-            if (_win.NodeSeekUI) { clearInterval(timer); cb(_win.NodeSeekUI); }
-            else if (Date.now() - start > maxWait) { clearInterval(timer); console.warn(`[${MODULE_NAME}] 基座未检测到，以独立模式运行`); initFeatures(); }
-        }, 200);
+        enableWaterfall: true,
+        enableRefFix: true,
+        listThreshold: 6000,
+        postThreshold: 4000,
+        scrollThrottle: 100,
+        smoothScroll: false,
+        highlightDuration: 1500
     };
 
-    // === 工具函数 ===
+    const CONFIG_SCHEMA = [
+        { key: 'enableWaterfall', type: 'switch', label: '瀑布流自动加载', description: '滚动到底部时自动加载下一页内容', inlineLabel: '启用', default: true },
+        { key: 'enableRefFix', type: 'switch', label: '评论引用跳转修复', description: '修复跨页引用评论导致页面刷新的问题，改为页内跳转', inlineLabel: '启用', default: true },
+        { key: 'listThreshold', type: 'number', label: '列表页预加载距离 (px)', description: '距离页面底部多少像素时开始加载下一页（列表页）', min: 1000, max: 20000, step: 500, default: 6000 },
+        { key: 'postThreshold', type: 'number', label: '帖子页预加载距离 (px)', description: '距离页面底部多少像素时开始加载下一页（帖子页）', min: 1000, max: 20000, step: 500, default: 4000 },
+        { key: 'scrollThrottle', type: 'number', label: '滚动检测间隔 (ms)', description: '滚动事件节流时间，值越小检测越灵敏', min: 50, max: 500, step: 50, default: 100 },
+        { key: 'smoothScroll', type: 'switch', label: '平滑滚动', description: '引用跳转时使用平滑滚动动画，关闭则瞬间跳转', inlineLabel: '启用', default: false },
+        { key: 'highlightDuration', type: 'number', label: '引用高亮时长 (ms)', description: '跳转到引用楼层后的高亮闪烁持续时间', min: 500, max: 5000, step: 500, default: 1500 }
+    ];
+
+    const getConfig = () => ({ ...DEFAULT_CONFIG, ...api.load(MODULE_ID, 'config', {}) });
+    const saveConfig = (data) => api.store(MODULE_ID, 'config', data);
+
     const throttle = (fn, ms) => {
         let last = 0;
         return (...a) => {
@@ -62,11 +36,9 @@ const CONFIG_SCHEMA = [
         };
     };
 
-    // === 功能主体 ===
     let cleanupFns = [];
 
     const initFeatures = () => {
-        // 清理上一轮的监听器（onToggle 重新启用时）
         cleanupFns.forEach(fn => fn());
         cleanupFns = [];
 
@@ -86,7 +58,6 @@ const CONFIG_SCHEMA = [
         let isBusy = false;
         let prevY = scrollY;
 
-        // --- 修复评论菜单 ---
         const processCommentMenus = (commentElements) => {
             if (!isPost || !commentElements?.length) return;
             const existingMenu = document.querySelector(".comment-menu");
@@ -106,7 +77,6 @@ const CONFIG_SCHEMA = [
             });
         };
 
-        // --- 瀑布流 ---
         if (cfg.enableWaterfall) {
             const loadNextPage = async () => {
                 if (isBusy) return;
@@ -165,19 +135,16 @@ const CONFIG_SCHEMA = [
             cleanupFns.push(() => window.removeEventListener("scroll", scrollHandler));
         }
 
-        // --- 点击拦截 ---
         const clickHandler = (e) => {
             const a = e.target.closest('a');
             if (!a) return;
 
-            // 分页器按钮强制刷新
             if (a.closest('.nsk-pager')) {
                 a.target = '_self';
                 e.stopImmediatePropagation();
                 return;
             }
 
-            // 楼层引用跳转修复
             if (cfg.enableRefFix && isPost && a.href && a.href.includes('#')) {
                 try {
                     const linkUrl = new URL(a.href, location.origin);
@@ -212,31 +179,26 @@ const CONFIG_SCHEMA = [
         cleanupFns.push(() => document.removeEventListener('click', clickHandler, true));
     };
 
-    // === 注册到基座 ===
-    waitForUI((api) => {
-        api.register({
-            id: MODULE_ID,
-            name: MODULE_NAME,
-            version: MODULE_VERSION,
-            description: MODULE_DESC,
-            onToggle(enabled) {
-                if (enabled) initFeatures();
-                else { cleanupFns.forEach(fn => fn()); cleanupFns = []; }
-            },
-            render(container) {
-                const currentConfig = getConfig();
-                container.innerHTML = '';
-                const fieldset = document.createElement('fieldset');
-                fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
-                fieldset.appendChild(api.UI.buildConfigForm(CONFIG_SCHEMA, currentConfig, (data) => {
-                    saveConfig(data);
-                    if (api.isEnabled(MODULE_ID)) initFeatures();
-                }));
-                container.appendChild(fieldset);
-            }
-        });
+    return {
+        id: MODULE_ID,
+        name: MODULE_NAME,
+        version: MODULE_VERSION,
+        description: '提前预加载下一页数据，实现无缝瀑布流；修复跨页引用评论导致页面刷新的问题。',
+        onToggle(enabled) {
+            if (enabled) initFeatures();
+            else { cleanupFns.forEach(fn => fn()); cleanupFns = []; }
+        },
+        render(container) {
+            const currentConfig = getConfig();
+            container.innerHTML = '';
+            const fieldset = document.createElement('fieldset');
+            fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
+            fieldset.appendChild(api.UI.buildConfigForm(CONFIG_SCHEMA, currentConfig, (data) => {
+                saveConfig(data);
+                if (api.isEnabled(MODULE_ID)) initFeatures();
+            }));
+            container.appendChild(fieldset);
+        }
+    };
 
-        if (api.isEnabled(MODULE_ID)) initFeatures();
-    });
-
-})();
+})(window.NodeSeekUI, 'ns_waterfall');
