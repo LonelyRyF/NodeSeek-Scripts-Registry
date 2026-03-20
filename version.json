@@ -1,1 +1,1 @@
-{"version":"4.5","updated_at":"2026-03-21","changelog":"模块管理中心优化、脚本市场禁用状态统一由 moduleStates 管理、基座自动更新检查","download_url":"https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-ui-framework/4.5.user.js"}
+{"version":"4.5","updated_at":"2026-03-21","changelog":"移除脚本市场禁用/启用按钮，启用状态统一由模块管理中心控制；修复管理中心禁用无效问题，禁用模块在执行层被拦截；移除 Market 安装数据中的 enabled 字段；脚本市场状态徽章改为读取 moduleStates","download_url":"https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-ui-framework/4.5.user.js"}
