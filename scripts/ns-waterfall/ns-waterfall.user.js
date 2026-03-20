@@ -1,9 +1,10 @@
-// 云端加载的瀑布流功能模块
-(function(api, MODULE_ID) {
+(function () {
     'use strict';
 
+    const MODULE_ID = 'ns_waterfall';
     const MODULE_NAME = '瀑布流 & 引用跳转';
     const MODULE_VERSION = '1.6.0';
+    const MODULE_DESC = '提前预加载下一页数据，实现无缝瀑布流；修复跨页引用评论导致页面刷新的问题。';
 
     const DEFAULT_CONFIG = {
         enableWaterfall: true,
@@ -25,9 +26,42 @@
         { key: 'highlightDuration', type: 'number', label: '引用高亮时长 (ms)', description: '跳转到引用楼层后的高亮闪烁持续时间', min: 500, max: 5000, step: 500, default: 1500 }
     ];
 
-    const getConfig = () => ({ ...DEFAULT_CONFIG, ...api.load(MODULE_ID, 'config', {}) });
-    const saveConfig = (data) => api.store(MODULE_ID, 'config', data);
+    // 缓存基座 API 实例，供存取配置使用
+    let nsAPI = null;
 
+    // 替换为使用基座提供的 load/store 方法
+    const getConfig = () => {
+        if (nsAPI) return { ...DEFAULT_CONFIG, ...nsAPI.load(MODULE_ID, 'config', {}) };
+        return DEFAULT_CONFIG; // 兜底返回默认配置
+    };
+    
+    const saveConfig = (data) => {
+        if (nsAPI) nsAPI.store(MODULE_ID, 'config', data);
+    };
+
+    // === 等待基座就绪后注册 ===
+    const waitForUI = (cb, maxWait = 10000) => {
+        // 云端模式下脚本直接运行在 window 上境，直接读取 window.NodeSeekUI
+        if (window.NodeSeekUI) {
+            nsAPI = window.NodeSeekUI;
+            return cb(nsAPI);
+        }
+        
+        const start = Date.now();
+        const timer = setInterval(() => {
+            if (window.NodeSeekUI) { 
+                clearInterval(timer); 
+                nsAPI = window.NodeSeekUI;
+                cb(nsAPI); 
+            } else if (Date.now() - start > maxWait) { 
+                clearInterval(timer); 
+                console.warn(`[${MODULE_NAME}] 基座未检测到，界面配置功能将不可用`); 
+                initFeatures(); 
+            }
+        }, 200);
+    };
+
+    // === 工具函数 ===
     const throttle = (fn, ms) => {
         let last = 0;
         return (...a) => {
@@ -36,9 +70,11 @@
         };
     };
 
+    // === 功能主体 ===
     let cleanupFns = [];
 
     const initFeatures = () => {
+        // 清理上一轮的监听器（onToggle 重新启用时）
         cleanupFns.forEach(fn => fn());
         cleanupFns = [];
 
@@ -58,6 +94,7 @@
         let isBusy = false;
         let prevY = scrollY;
 
+        // --- 修复评论菜单 ---
         const processCommentMenus = (commentElements) => {
             if (!isPost || !commentElements?.length) return;
             const existingMenu = document.querySelector(".comment-menu");
@@ -77,6 +114,7 @@
             });
         };
 
+        // --- 瀑布流 ---
         if (cfg.enableWaterfall) {
             const loadNextPage = async () => {
                 if (isBusy) return;
@@ -135,16 +173,19 @@
             cleanupFns.push(() => window.removeEventListener("scroll", scrollHandler));
         }
 
+        // --- 点击拦截 ---
         const clickHandler = (e) => {
             const a = e.target.closest('a');
             if (!a) return;
 
+            // 分页器按钮强制刷新
             if (a.closest('.nsk-pager')) {
                 a.target = '_self';
                 e.stopImmediatePropagation();
                 return;
             }
 
+            // 楼层引用跳转修复
             if (cfg.enableRefFix && isPost && a.href && a.href.includes('#')) {
                 try {
                     const linkUrl = new URL(a.href, location.origin);
@@ -179,26 +220,31 @@
         cleanupFns.push(() => document.removeEventListener('click', clickHandler, true));
     };
 
-    return {
-        id: MODULE_ID,
-        name: MODULE_NAME,
-        version: MODULE_VERSION,
-        description: '提前预加载下一页数据，实现无缝瀑布流；修复跨页引用评论导致页面刷新的问题。',
-        onToggle(enabled) {
-            if (enabled) initFeatures();
-            else { cleanupFns.forEach(fn => fn()); cleanupFns = []; }
-        },
-        render(container) {
-            const currentConfig = getConfig();
-            container.innerHTML = '';
-            const fieldset = document.createElement('fieldset');
-            fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
-            fieldset.appendChild(api.UI.buildConfigForm(CONFIG_SCHEMA, currentConfig, (data) => {
-                saveConfig(data);
-                if (api.isEnabled(MODULE_ID)) initFeatures();
-            }));
-            container.appendChild(fieldset);
-        }
-    };
+    // === 注册到基座 ===
+    waitForUI((api) => {
+        api.register({
+            id: MODULE_ID,
+            name: MODULE_NAME,
+            version: MODULE_VERSION,
+            description: MODULE_DESC,
+            onToggle(enabled) {
+                if (enabled) initFeatures();
+                else { cleanupFns.forEach(fn => fn()); cleanupFns = []; }
+            },
+            render(container) {
+                const currentConfig = getConfig();
+                container.innerHTML = '';
+                const fieldset = document.createElement('fieldset');
+                fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
+                fieldset.appendChild(api.UI.buildConfigForm(CONFIG_SCHEMA, currentConfig, (data) => {
+                    saveConfig(data);
+                    if (api.isEnabled(MODULE_ID)) initFeatures();
+                }));
+                container.appendChild(fieldset);
+            }
+        });
 
-})(window.NodeSeekUI, 'ns_waterfall');
+        if (api.isEnabled(MODULE_ID)) initFeatures();
+    });
+
+})();
