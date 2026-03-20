@@ -40,10 +40,10 @@
       "id": "ns-privacy-guard",
       "name": "NodeSeek 隐私保护",
       "description": "模糊或替换帖子列表及详情页中的用户头像和名称，保护浏览隐私。",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "author": "_RyF",
       "tags": ["privacy", "ux", "nodeseek"],
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-privacy-guard/1.2.0.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-privacy-guard/1.3.0.user.js"
     }
   ]
 }
