@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      4.3
 // @description  NodeSeek / DeepFlood 扩展基座。支持沙盒穿透、Schema表单渲染、内置原生 UI 组件库、脚本市场。
-// @author       浅霖
+// @author       rainyfall (aka. 浅霖)
 // @match        https://www.nodeseek.com/*
 // @match        https://www.deepflood.com/*
 // @grant        GM_getValue
