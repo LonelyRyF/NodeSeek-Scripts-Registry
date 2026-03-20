@@ -1,6 +1,1 @@
-{
-  "version": "4.4",
-  "updated_at": "2026-03-21",
-  "changelog": "首次发布自动更新支持",
-  "download_url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-ui-framework/4.4.user.js"
-}
+{"version":"4.5","updated_at":"2026-03-21","changelog":"模块管理中心优化、脚本市场禁用状态统一由 moduleStates 管理、基座自动更新检查","download_url":"https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-ui-framework/4.5.user.js"}
