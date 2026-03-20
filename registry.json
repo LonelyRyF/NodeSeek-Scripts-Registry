@@ -35,15 +35,6 @@
       "author": "_RyF",
       "tags": ["sticker", "emoji", "nodeseek"],
       "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-sticker/16.1.1.user.js"
-    },
-    {
-      "id": "ns-ui-framework",
-      "name": "NodeSeek Setting Framework (UI基座)",
-      "description": "NodeSeek / DeepFlood 扩展基座。支持沙盒穿透、Schema表单渲染、内置原生 UI 组件库、脚本市场。",
-      "version": "4.3",
-      "author": "浅霖",
-      "tags": ["framework", "ui", "nodeseek"],
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/ns-ui-framework.user.js"
     }
   ]
 }
