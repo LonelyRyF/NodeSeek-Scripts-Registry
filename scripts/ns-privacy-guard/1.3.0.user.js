@@ -35,7 +35,13 @@
     SCHEMA.forEach(function(item) { DEFAULT_CONFIG[item.key] = item.default; });
 
     function getConfig() {
-        return API.load(MODULE_ID, 'config', DEFAULT_CONFIG);
+        var saved = API.load(MODULE_ID, 'config', {});
+        // 用默认值填充缺失字段，兼容旧存储和全新安装
+        var cfg = {};
+        SCHEMA.forEach(function(item) {
+            cfg[item.key] = (saved[item.key] !== undefined) ? saved[item.key] : item.default;
+        });
+        return cfg;
     }
 
     function applyToAvatar(imgEl, cfg) {
@@ -43,14 +49,15 @@
         if (cfg.avatarMode === 'blur') {
             imgEl.style.filter = 'blur(' + cfg.blurAvatarAmount + 'px)';
             imgEl.style.transition = 'filter 0.2s';
+            imgEl.setAttribute('data-ns-privacy', '1');
         } else if (cfg.avatarMode === 'replace') {
             if (cfg.replaceAvatar) {
                 imgEl.src = cfg.replaceAvatar;
             } else {
                 imgEl.style.visibility = 'hidden';
             }
+            imgEl.setAttribute('data-ns-privacy', '1');
         }
-        imgEl.setAttribute('data-ns-privacy', '1');
     }
 
     function applyToName(el, cfg) {
@@ -59,11 +66,12 @@
             el.style.filter = 'blur(' + cfg.blurNameAmount + 'px)';
             el.style.transition = 'filter 0.2s';
             el.style.userSelect = 'none';
+            el.setAttribute('data-ns-privacy', '1');
         } else if (cfg.nameMode === 'replace') {
             el.setAttribute('data-ns-orig-name', el.textContent);
             el.textContent = cfg.replaceName || '***';
+            el.setAttribute('data-ns-privacy', '1');
         }
-        el.setAttribute('data-ns-privacy', '1');
     }
 
     function processListItem(item, cfg) {
