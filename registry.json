@@ -8,6 +8,15 @@
       "author": "_RyF",
       "tags": ["waterfall", "ux", "nodeseek"],
       "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-waterfall/1.6.0.user.js"
+    },
+    {
+      "id": "ns-user-badge",
+      "name": "NodeSeek 用户信息徽章",
+      "description": "在帖子作者昵称旁显示等级和加入天数，完美支持暗黑模式，可自定义颜色与展示项。",
+      "version": "0.4.1",
+      "author": "_RyF",
+      "tags": ["badge", "user-info", "nodeseek"],
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-user-badge/0.4.1.user.js"
     }
   ]
 }
