@@ -17,6 +17,15 @@
       "author": "_RyF",
       "tags": ["badge", "user-info", "nodeseek"],
       "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-user-badge/0.4.1.user.js"
+    },
+    {
+      "id": "ns-pangu",
+      "name": "NodeSeek 盘古排版助手",
+      "description": "自动在中英文之间添加空格。采用提取-占位-还原架构，完美保护 Markdown 语法及 @提及。",
+      "version": "3.1.0",
+      "author": "_RyF",
+      "tags": ["formatting", "typography", "nodeseek"],
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-pangu/3.1.0.user.js"
     }
   ]
 }
