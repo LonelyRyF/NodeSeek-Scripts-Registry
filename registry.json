@@ -26,6 +26,15 @@
       "author": "_RyF",
       "tags": ["formatting", "typography", "nodeseek"],
       "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-pangu/3.1.0.user.js"
+    },
+    {
+      "id": "ns-sticker",
+      "name": "NodeSeek 自定义表情包",
+      "description": "在回复框中插入自定义表情包，支持多分组与序列模式。",
+      "version": "16.1.1",
+      "author": "_RyF",
+      "tags": ["sticker", "emoji", "nodeseek"],
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-sticker/16.1.1.user.js"
     }
   ]
 }
