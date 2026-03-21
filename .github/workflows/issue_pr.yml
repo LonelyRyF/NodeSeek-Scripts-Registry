@@ -1,0 +1,62 @@
+name: Issue to PR (Plugin Publish)
+
+# 仅在带有特定 Label 的 Issue 被新建或修改时触发
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  build-and-pr:
+    if: contains(github.event.issue.labels.*.name, 'Publish')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Run Publish Bot
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: python .github/scripts/publish_bot.py
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "feat: update script ${{ github.event.issue.title }} from issue #${{ github.event.issue.number }}"
+          branch: "publish/issue-${{ github.event.issue.number }}"
+          title: "自动发布: ${{ github.event.issue.title }}"
+          body: |
+            ## 自动化脚本更新
+            此 PR 由 Issue #${{ github.event.issue.number }} 自动生成。
+            
+            - 已下载 `.user.js` 文件至对应目录。
+            - 已自动更新 `registry.json` 索引。
+            
+            **请仓库管理员（@LonelyRyF）检查代码变动（Files changed），确认无误后点击 Merge 合并。**
+          labels: |
+            automated-pr
+          delete-branch: true
+
+      - name: Comment on Issue
+        if: success()
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: "**自动化打包成功！** 已生成 Pull Request 供仓库主审核，合并后即可生效。"
+
+      - name: Comment on Issue (Failure)
+        if: failure()
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: "**自动化打包失败。** 请检查是否正确填写了表格并上传了 `.user.js` 文件。详细报错请查看 Actions 日志。"
