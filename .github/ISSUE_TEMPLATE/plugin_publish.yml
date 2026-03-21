@@ -1,4 +1,4 @@
-name: 🚀 发布/更新子脚本
+name: 发布/更新子脚本
 description: 填写信息并上传文件，自动提交 PR 更新云端脚本库
 title: "Publish: {script_id} v{version}"
 labels: ["Publish"]
@@ -9,12 +9,14 @@ body:
         感谢提交脚本！请填写下方表格并将 `.user.js` 文件拖入底部的上传框。
         机器人会自动解析并生成 Pull Request，等待仓库主审核后即可上线。
 
+        > 脚本 ID 请统一使用**连字符**命名（如 `ns-privacy-guard`），基座会自动兼容。
+
   - type: input
     id: script_id
     attributes:
       label: 脚本 ID
-      description: 模块的唯一标识符（建议使用下划线命名，如 ns_privacy_guard）
-      placeholder: e.g. ns_privacy_guard
+      description: 模块的唯一标识符，请使用连字符命名（如 ns-privacy-guard）
+      placeholder: e.g. ns-privacy-guard
     validations:
       required: true
 
@@ -33,6 +35,15 @@ body:
       label: 脚本名称
       description: 显示在面板中的友好名称
       placeholder: e.g. 隐私保护助手
+    validations:
+      required: true
+
+  - type: input
+    id: author
+    attributes:
+      label: 作者名
+      description: 你的名字或昵称，将显示在脚本市场中
+      placeholder: e.g. 浅霖
     validations:
       required: true
 
