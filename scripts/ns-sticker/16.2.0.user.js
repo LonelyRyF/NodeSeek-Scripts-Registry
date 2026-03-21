@@ -2,10 +2,12 @@
     'use strict';
 
     const API = window.NodeSeekUI;
+    const UI = API.UI;
 
     const MODULE_ID = 'ns_sticker';
     const MODULE_NAME = '自定义表情包';
-    const MODULE_VERSION = '16.1.1';
+    const MODULE_VERSION = '16.2.0';
+    const STYLE_ID = MODULE_ID + '_css';
 
     const DEFAULT_GROUPS = [
         {
@@ -19,9 +21,11 @@
 
     let stickerObserver = null;
 
+    const SELECTORS = { tabBar: '.expression', contentBox: '.exp-container', tabItem: '.exp-item', customClass: 'ns-custom-element' };
+    const REGISTRY = { tabs: [], panels: [], nativePanel: null, activeCustomIndex: -1 };
+
     // --- 存储桥接 ---
     const loadGroups = () => {
-        if (!API) return DEFAULT_GROUPS;
         const raw = API.load(MODULE_ID, 'groups', null);
         if (!raw) return DEFAULT_GROUPS;
         try { 
@@ -32,7 +36,7 @@
     };
 
     const saveGroups = (groups) => {
-        if (API) API.store(MODULE_ID, 'groups', groups);
+        API.store(MODULE_ID, 'groups', groups);
     };
 
     // --- 工具：展开序列 ---
@@ -43,20 +47,34 @@
         return list;
     }
 
-    // =================================================================
-    // 功能主体：表情注入
-    // =================================================================
-    const SELECTORS = { tabBar: '.expression', contentBox: '.exp-container', tabItem: '.exp-item', customClass: 'ns-custom-element' };
-    const REGISTRY = { tabs: [], panels: [], nativePanel: null, activeCustomIndex: -1 };
-
+    // --- 样式注入 ---
     function injectStyles() {
-        if (document.getElementById('ns-sticker-style-fix')) return;
-        const style = document.createElement('style');
-        style.id = 'ns-sticker-style-fix';
-        style.textContent = `.expression { flex-wrap: wrap !important; height: auto !important; white-space: normal !important; overflow-x: visible !important; row-gap: 8px; } .exp-item { margin-bottom: 2px !important; flex-shrink: 0 !important; } @media (max-width: 600px) { .expression { max-height: 120px; overflow-y: auto !important; } }`;
-        document.head.appendChild(style);
+        API.addStyle(`
+            .expression { 
+                flex-wrap: wrap !important; 
+                height: auto !important; 
+                white-space: normal !important; 
+                overflow-x: visible !important; 
+                row-gap: 8px; 
+            } 
+            .exp-item { 
+                margin-bottom: 2px !important; 
+                flex-shrink: 0 !important; 
+            } 
+            @media (max-width: 600px) { 
+                .expression { 
+                    max-height: 120px; 
+                    overflow-y: auto !important; 
+                } 
+            }
+        `, STYLE_ID);
     }
 
+    function removeStyles() {
+        API.removeStyle(STYLE_ID);
+    }
+
+    // --- 核心功能 ---
     function insertSticker(text) {
         const isMobile = () => 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         const cm = document.querySelector('.CodeMirror')?.CodeMirror;
@@ -100,11 +118,9 @@
         const vueId = nativeContentBox.getAttributeNames().find(n => n.startsWith('data-v-'));
         const referenceTab = tabBar.querySelector(SELECTORS.tabItem);
 
-        // 重置注册表
         REGISTRY.tabs = [];
         REGISTRY.panels = [];
 
-        // 拦截原生 Tab 点击
         Array.from(tabBar.children).forEach(t => {
             if (t.id !== 'ns-sticker-settings-btn') {
                 t.addEventListener('click', () => {
@@ -153,7 +169,6 @@
                         if (!el.classList.contains(SELECTORS.customClass)) el.classList.remove('current-group');
                     });
 
-                    // 懒加载填充
                     if (panel.dataset.loaded === 'false') {
                         panel.dataset.loaded = 'true';
                         const expandedStickers = [];
@@ -182,7 +197,6 @@
             REGISTRY.tabs.push(tab);
         });
 
-        // 设置快捷按钮
         if (!document.getElementById('ns-sticker-settings-btn')) {
             const btn = document.createElement('div');
             btn.id = 'ns-sticker-settings-btn';
@@ -205,16 +219,17 @@
     }
 
     function stopService() {
-        if (stickerObserver) stickerObserver.disconnect();
+        if (stickerObserver) {
+            stickerObserver.disconnect();
+            stickerObserver = null;
+        }
         document.querySelectorAll(`.${SELECTORS.customClass}`).forEach(el => el.remove());
         document.getElementById('ns-sticker-settings-btn')?.remove();
+        removeStyles();
     }
 
-    // =================================================================
-    // 设置面板逻辑 (适配基座 UI)
-    // =================================================================
-    function renderSettings(container, base) {
-        const { UI } = base;
+    // --- 设置面板 ---
+    function renderSettings(container) {
         container.innerHTML = '';
         const fieldset = document.createElement('fieldset');
         fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME}</h2>`;
@@ -225,7 +240,6 @@
 
         let groups = JSON.parse(JSON.stringify(loadGroups()));
 
-        // 样式微调
         const compact = (el) => { el.style.padding = '3px 7px'; el.style.fontSize = '12px'; el.style.height = '28px'; return el; };
         const btnStyle = (el) => { el.style.padding = '3px 8px'; el.style.fontSize = '12px'; el.style.lineHeight = 'normal'; return el; };
 
@@ -275,15 +289,33 @@
             const bottom = UI._el('div', { style: 'margin-top:15px; display:flex; gap:10px' });
             bottom.append(
                 UI.createButton({ text: '+ 添加分组', onClick: () => { groups.push({tabName:'新分组', stickers:[]}); render(); } }),
-                UI.createButton({ text: '保存配置', type: 'primary', onClick: () => { saveGroups(groups); base.showAlert('配置已保存，刷新生效。'); } })
+                UI.createButton({ text: '保存配置', type: 'primary', onClick: () => { saveGroups(groups); API.showAlert('配置已保存，刷新生效。'); } })
             );
             editorRoot.appendChild(bottom);
         };
         render();
     }
 
-    // =================================================================
-    // 启动与注册
-    // =================================================================
+    // --- 注册基座 ---
+    API.register({
+        id: MODULE_ID,
+        name: MODULE_NAME,
+        version: MODULE_VERSION,
+        description: '在回复框中插入自定义表情包，支持多分组与序列模式。',
+        
+        render: renderSettings,
+        
+        execute: function() {
+            startService();
+        },
+        
+        onToggle: function(enabled) {
+            if (enabled) {
+                startService();
+            } else {
+                stopService();
+            }
+        }
+    });
 
 })();
