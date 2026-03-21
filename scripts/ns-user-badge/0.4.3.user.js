@@ -1,6 +1,8 @@
 (function() {
     'use strict';
 
+    const API = window.NodeSeekUI;
+
     const MODULE_ID = 'ns_user_badge';
     const MODULE_NAME = '用户信息徽章';
     const MODULE_VERSION = '0.4.2';
@@ -14,29 +16,23 @@
 
     const apiCache = new Map();
     let observer = null;
-    let nsAPI = null;
 
     // --- 基座存储桥接 ---
-    const getConfig = () => {
-        if (nsAPI) return { ...DEFAULT_CONFIG, ...nsAPI.load(MODULE_ID, 'config', {}) };
-        return DEFAULT_CONFIG;
-    };
+    const getConfig = () => API.getConfig(MODULE_ID, SCHEMA);
 
-    const saveConfig = (data) => {
-        if (nsAPI) nsAPI.store(MODULE_ID, 'config', data);
-    };
+    const saveConfig = (data) => API.store(MODULE_ID, 'config', data);
 
     const waitForUI = (cb, maxWait = 10000) => {
         if (window.NodeSeekUI) {
             nsAPI = window.NodeSeekUI;
-            return cb(nsAPI);
+            return cb(API);
         }
         const start = Date.now();
         const timer = setInterval(() => {
             if (window.NodeSeekUI) {
                 clearInterval(timer);
                 nsAPI = window.NodeSeekUI;
-                cb(nsAPI);
+                cb(API);
             } else if (Date.now() - start > maxWait) {
                 clearInterval(timer);
                 console.warn(`[${MODULE_NAME}] 基座未检测到，界面配置功能将不可用`);
@@ -136,35 +132,6 @@
     }
 
     // --- 基座集成逻辑 ---
-    waitForUI((api) => {
-        api.register({
-            id: MODULE_ID,
-            name: MODULE_NAME,
-            version: MODULE_VERSION,
-            description: MODULE_DESC,
-            onToggle(enabled) {
-                if (enabled) initFeatures();
-                else stopFeatures();
-            },
-            render(container) {
-                const currentConfig = getConfig();
-                container.innerHTML = '';
-                
-                const fieldset = document.createElement('fieldset');
-                fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
-                
-                const formContainer = document.createElement('div');
-                formContainer.style.marginTop = '15px';
-
-                // 开关：显示等级
-                const rankSwitch = api.UI.createFormRow({
-                    label: '显示等级徽章',
-                    control: api.UI.createSwitch({
-                        checked: currentConfig.showRank,
-                        inlineLabel: '启用',
-                        onChange: (val) => currentConfig.showRank = val
-                    })
-                });
 
                 // 开关：显示天数
                 const daysSwitch = api.UI.createFormRow({
