@@ -47,6 +47,14 @@
       "version": "1.2.0",
       "author": "_RyF",
       "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_url_cleaner/1.2.0.user.js"
+    },
+    {
+      "id": "ns_exact_time",
+      "name": "精确时间显示",
+      "description": "将页面上的相对时间（如“3小时前”）自动替换为悬停提示中的完整绝对时间。",
+      "version": "1.0.0",
+      "author": "_RyF",
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_exact_time/1.0.0.user.js"
     }
   ]
 }
