@@ -149,14 +149,14 @@
         name: MODULE_NAME,
         version: MODULE_VERSION,
         description: MODULE_DESC,
-        execute() {
+        execute: function() {
             initFeatures();
         },
-        onToggle(enabled) {
+        onToggle: function(enabled) {
             if (enabled) initFeatures();
             else { cleanupFns.forEach(fn => fn()); cleanupFns = []; }
         },
-        render(container) {
+        render: function(container) {
             const currentConfig = API.getConfig(MODULE_ID, CONFIG_SCHEMA);
             container.innerHTML = '';
             const fieldset = document.createElement('fieldset');
