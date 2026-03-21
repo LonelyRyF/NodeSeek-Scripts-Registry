@@ -2,63 +2,27 @@
     'use strict';
 
     const API = window.NodeSeekUI;
+    const UI = API.UI;
 
     const MODULE_ID = 'ns_waterfall';
     const MODULE_NAME = '瀑布流 & 引用跳转';
-    const MODULE_VERSION = '1.6.0';
+    const MODULE_VERSION = '1.7.0';
     const MODULE_DESC = '提前预加载下一页数据，实现无缝瀑布流；修复跨页引用评论导致页面刷新的问题。';
 
-    const DEFAULT_CONFIG = {
-        enableWaterfall: true,
-        enableRefFix: true,
-        listThreshold: 6000,
-        postThreshold: 4000,
-        scrollThrottle: 100,
-        smoothScroll: false,
-        highlightDuration: 1500
-    };
-
-    const CONFIG_SCHEMA = [
-        { key: 'enableWaterfall', type: 'switch', label: '瀑布流自动加载', description: '滚动到底部时自动加载下一页内容', inlineLabel: '启用', default: true },
-        { key: 'enableRefFix', type: 'switch', label: '评论引用跳转修复', description: '修复跨页引用评论导致页面刷新的问题，改为页内跳转', inlineLabel: '启用', default: true },
+    const SCHEMA = [
+        { key: 'enableWaterfall', type: 'switch', label: '瀑布流自动加载', description: '滚动到底部时自动加载下一页内容', default: true },
+        { key: 'enableRefFix', type: 'switch', label: '评论引用跳转修复', description: '修复跨页引用评论导致页面刷新的问题，改为页内跳转', default: true },
         { key: 'listThreshold', type: 'number', label: '列表页预加载距离 (px)', description: '距离页面底部多少像素时开始加载下一页（列表页）', min: 1000, max: 20000, step: 500, default: 6000 },
         { key: 'postThreshold', type: 'number', label: '帖子页预加载距离 (px)', description: '距离页面底部多少像素时开始加载下一页（帖子页）', min: 1000, max: 20000, step: 500, default: 4000 },
         { key: 'scrollThrottle', type: 'number', label: '滚动检测间隔 (ms)', description: '滚动事件节流时间，值越小检测越灵敏', min: 50, max: 500, step: 50, default: 100 },
-        { key: 'smoothScroll', type: 'switch', label: '平滑滚动', description: '引用跳转时使用平滑滚动动画，关闭则瞬间跳转', inlineLabel: '启用', default: false },
+        { key: 'smoothScroll', type: 'switch', label: '平滑滚动', description: '引用跳转时使用平滑滚动动画，关闭则瞬间跳转', default: false },
         { key: 'highlightDuration', type: 'number', label: '引用高亮时长 (ms)', description: '跳转到引用楼层后的高亮闪烁持续时间', min: 500, max: 5000, step: 500, default: 1500 }
     ];
 
-    // 缓存基座 API 实例，供存取配置使用
+    let cleanupFns = [];
 
-    // 替换为使用基座提供的 load/store 方法
-    const getConfig = () => {
-        if (API) return { ...DEFAULT_CONFIG, ...API.load(MODULE_ID, 'config', {}) };
-        return DEFAULT_CONFIG; // 兜底返回默认配置
-    };
-    
+    const getConfig = () => API.getConfig(MODULE_ID, SCHEMA);
     const saveConfig = (data) => API.store(MODULE_ID, 'config', data);
-
-    // === 等待基座就绪后注册 ===
-    const waitForUI = (cb, maxWait = 10000) => {
-        // 云端模式下脚本直接运行在 window 上境，直接读取 window.NodeSeekUI
-        if (window.NodeSeekUI) {
-            nsAPI = window.NodeSeekUI;
-            return cb(API);
-        }
-        
-        const start = Date.now();
-        const timer = setInterval(() => {
-            if (window.NodeSeekUI) { 
-                clearInterval(timer); 
-                nsAPI = window.NodeSeekUI;
-                cb(API); 
-            } else if (Date.now() - start > maxWait) { 
-                clearInterval(timer); 
-                console.warn(`[${MODULE_NAME}] 基座未检测到，界面配置功能将不可用`); 
-                initFeatures(); 
-            }
-        }, 200);
-    };
 
     // === 工具函数 ===
     const throttle = (fn, ms) => {
@@ -69,14 +33,15 @@
         };
     };
 
-    // === 功能主体 ===
-    let cleanupFns = [];
-
-    const initFeatures = () => {
-        // 清理上一轮的监听器（onToggle 重新启用时）
+    // === 清理功能 ===
+    function cleanup() {
         cleanupFns.forEach(fn => fn());
         cleanupFns = [];
+    }
 
+    // === 功能主体 ===
+    const initFeatures = () => {
+        cleanup();
         const cfg = getConfig();
 
         const PROFILES = {
@@ -125,8 +90,12 @@
 
                 isBusy = true;
                 try {
-                    const res = await fetch(nextUrl, { credentials: "include" });
-                    const html = await res.text();
+                    const res = await API.request({
+                        url: nextUrl,
+                        method: 'GET',
+                        credentials: 'include'
+                    });
+                    const html = res.responseText;
                     const doc = new DOMParser().parseFromString(html, "text/html");
 
                     if (isPost) {
@@ -219,9 +188,42 @@
         cleanupFns.push(() => document.removeEventListener('click', clickHandler, true));
     };
 
-    // === 注册到基座 ===
+    // --- 设置面板 ---
+    function renderSettings(container) {
+        const cfg = getConfig();
+        const form = UI.buildConfigForm(SCHEMA, cfg, (newData) => {
+            saveConfig(newData);
+            cleanup();
+            initFeatures();
+            API.showAlert('配置已保存并即时生效！');
+        });
+        
+        const fieldset = document.createElement('fieldset');
+        fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME}</h2><p style="font-size:13px;color:#888;margin-bottom:16px;">${MODULE_DESC}</p>`;
+        fieldset.appendChild(form);
+        container.appendChild(fieldset);
+    }
 
-        if (api.isEnabled(MODULE_ID)) initFeatures();
+    // === 注册到基座 ===
+    API.register({
+        id: MODULE_ID,
+        name: MODULE_NAME,
+        version: MODULE_VERSION,
+        description: MODULE_DESC,
+        
+        render: renderSettings,
+        
+        execute: function() {
+            initFeatures();
+        },
+        
+        onToggle: function(enabled) {
+            if (enabled) {
+                initFeatures();
+            } else {
+                cleanup();
+            }
+        }
     });
 
 })();
