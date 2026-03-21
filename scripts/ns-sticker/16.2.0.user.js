@@ -295,7 +295,7 @@
             if (enabled) startService();
             else stopService();
         },
-        render: function(c) { return renderSettings(c); }
+        render: renderSettings
     });
 
 })();
