@@ -1,19 +1,30 @@
 (function() {
     'use strict';
 
-    const API = window.NodeSeekUI;
     const MODULE_ID = 'ns_pangu';
     const MODULE_NAME = '盘古排版助手';
-    const MODULE_VERSION = '3.2.0';
+    const MODULE_VERSION = '3.1.0';
     const MODULE_DESC = '自动在中英文之间添加空格。采用提取-占位-还原架构，完美保护 Markdown 语法及 @提及。';
 
-    const SCHEMA = [
-        { key: 'autoFormatOnSubmit', type: 'switch', label: '发布时自动排版', description: '点击发布按钮时，自动对内容进行格式化', inlineLabel: '启用', default: true },
-        { key: 'showEditorBtn', type: 'switch', label: '显示快捷排版按钮', description: '在编辑器发布按钮旁边显示一个手动的排版按钮', inlineLabel: '启用', default: true }
-    ];
+    const DEFAULT_CONFIG = {
+        autoFormatOnSubmit: true, // 发布时自动排版
+        showEditorBtn: true,      // 显示编辑器“排版”按钮
+    };
 
+    let nsAPI = null;
     let panguLoaded = false;
 
+    // --- 基座存储桥接 ---
+    const getConfig = () => {
+        if (nsAPI) return { ...DEFAULT_CONFIG, ...nsAPI.load(MODULE_ID, 'config', {}) };
+        return DEFAULT_CONFIG;
+    };
+
+    const saveConfig = (data) => {
+        if (nsAPI) nsAPI.store(MODULE_ID, 'config', data);
+    };
+
+    // --- 动态加载 Pangu.js ---
     const loadPanguLib = () => {
         if (window.pangu) return Promise.resolve();
         return new Promise((resolve, reject) => {
@@ -25,20 +36,26 @@
         });
     };
 
+    /**
+     * 核心排版引擎
+     */
     function safePanguFormat(originalText) {
         if (!window.pangu) return originalText;
+        
         const protections = [];
+        // 定义需要保护的 Markdown 语法规则
         const protectRules = [
-            /```[\s\S]*?```/g,
-            /`[^`\n]+`/g,
-            /@[\w\u4e00-\u9fa5-]+/g,
-            /~~[\s\S]+?~~/g,
-            /\*\*[\s\S]+?\*\*/g,
-            /__[\s\S]+?__/g,
-            /!\[.*?\]\(.*?\)/g,
-            /\[.*?\]\(.*?\)/g,
-            /(https?:\/\/[^\s]+)/g
+            /```[\s\S]*?```/g,          // 1. 多行代码块
+            /`[^`\n]+`/g,               // 2. 行内代码
+            /@[\w\u4e00-\u9fa5-]+/g,    // 3. @提及 (新增保护)
+            /~~[\s\S]+?~~/g,            // 4. 删除线
+            /\*\*[\s\S]+?\*\*/g,        // 5. 粗体
+            /__[\s\S]+?__/g,            // 6. 下划线/粗体
+            /!\[.*?\]\(.*?\)/g,         // 7. 图片
+            /\[.*?\]\(.*?\)/g,          // 8. 链接
+            /(https?:\/\/[^\s]+)/g      // 9. 纯文本 URL
         ];
+
         let tempText = originalText;
         protectRules.forEach((regex) => {
             tempText = tempText.replace(regex, (match) => {
@@ -46,16 +63,24 @@
                 return `NSPGMACROX${protections.length - 1}X`;
             });
         });
+
         let spacedText = window.pangu.spacing(tempText);
+
         protections.forEach((match, i) => {
-            spacedText = spacedText.replace(`NSPGMACROX${i}X`, match);
+            const placeholder = `NSPGMACROX${i}X`;
+            spacedText = spacedText.replace(placeholder, match);
         });
+
         return spacedText;
     }
 
+    /**
+     * 应用到编辑器
+     */
     function applyPanguSpacing() {
         const cm = document.querySelector('.CodeMirror')?.CodeMirror;
         let isChanged = false;
+
         if (cm) {
             const doc = cm.getDoc();
             const originalText = doc.getValue();
@@ -81,23 +106,29 @@
         return isChanged;
     }
 
+    // --- UI 注入逻辑 ---
     let observer = null;
     const CUSTOM_BTN_CLASS = 'ns-pangu-btn';
 
     function injectFeatures() {
-        const cfg = API.getConfig(MODULE_ID, SCHEMA);
+        const cfg = getConfig();
         const candidates = document.querySelectorAll('button, [role="button"]');
+        
         for (let btn of candidates) {
             const text = btn.innerText.trim();
             if (['发布帖子', '发布评论', '编辑帖子', '编辑评论'].includes(text) && !btn.classList.contains('ns-pangu-bound')) {
+                
                 btn.classList.add('ns-pangu-bound');
                 const container = btn.parentElement;
+
+                // 1. 注入手动按钮
                 if (cfg.showEditorBtn && container && !container.querySelector(`.${CUSTOM_BTN_CLASS}`)) {
                     const panguBtn = document.createElement('button');
                     panguBtn.className = `${CUSTOM_BTN_CLASS} ${btn.className}`;
                     panguBtn.type = 'button';
                     panguBtn.innerText = '排版';
-                    panguBtn.style.cssText = 'margin-right: 8px !important; background: transparent !important; color: #6b7280 !important; border: 1px solid #d1d5db !important; padding: 0 12px !important;';
+                    panguBtn.style.cssText = `margin-right: 8px !important; background: transparent !important; color: #6b7280 !important; border: 1px solid #d1d5db !important; padding: 0 12px !important;`;
+                    
                     panguBtn.onclick = (e) => {
                         e.preventDefault();
                         const changed = applyPanguSpacing();
@@ -106,8 +137,12 @@
                     };
                     container.insertBefore(panguBtn, btn);
                 }
+
+                // 2. 自动排版拦截
                 if (cfg.autoFormatOnSubmit) {
-                    btn.addEventListener('click', () => { applyPanguSpacing(); }, true);
+                    btn.addEventListener('click', () => {
+                        applyPanguSpacing();
+                    }, true);
                 }
             }
         }
@@ -128,33 +163,42 @@
         document.querySelectorAll('.ns-pangu-bound').forEach(b => b.classList.remove('ns-pangu-bound'));
     }
 
-    function renderSettings(container) {
+    // --- 注册基座 ---
+    const checkCore = setInterval(() => {
+        if (window.NodeSeekUI) {
+            clearInterval(checkCore);
+            nsAPI = window.NodeSeekUI;
 
-            const cfg = API.getConfig(MODULE_ID, SCHEMA);
-            container.innerHTML = '';
-            const fieldset = document.createElement('fieldset');
-            fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
-            const form = API.UI.buildConfigForm(SCHEMA, cfg, (data) => {
-                API.store(MODULE_ID, 'config', data);
-                if (API.isEnabled(MODULE_ID)) startService();
+            nsAPI.register({
+                id: MODULE_ID,
+                name: MODULE_NAME,
+                version: MODULE_VERSION,
+                description: MODULE_DESC,
+                onToggle(enabled) {
+                    if (enabled) startService();
+                    else stopService();
+                },
+                render(container) {
+                    const cfg = getConfig();
+                    container.innerHTML = '';
+                    const fieldset = document.createElement('fieldset');
+                    fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
+
+                    const form = nsAPI.UI.buildConfigForm([
+                        { key: 'autoFormatOnSubmit', type: 'switch', label: '发布时自动排版', description: '点击发布按钮时，自动对内容进行格式化', inlineLabel: '启用', default: true },
+                        { key: 'showEditorBtn', type: 'switch', label: '显示快捷排版按钮', description: '在编辑器发布按钮旁边显示一个手动的“排版”按钮', inlineLabel: '启用', default: true }
+                    ], cfg, (data) => {
+                        saveConfig(data);
+                        if (nsAPI.isEnabled(MODULE_ID)) startService();
+                    });
+
+                    fieldset.appendChild(form);
+                    container.appendChild(fieldset);
+                }
             });
-            fieldset.appendChild(form);
-            container.appendChild(fieldset);
-    }
 
-    API.register({
-        id: MODULE_ID,
-        name: MODULE_NAME,
-        version: MODULE_VERSION,
-        description: MODULE_DESC,
-        execute: function() {
-            startService();
-        },
-        onToggle: function(enabled) {
-            if (enabled) startService();
-            else stopService();
-        },
-        render: renderSettings
-    });
+            if (nsAPI.isEnabled(MODULE_ID)) startService();
+        }
+    }, 200);
 
 })();
