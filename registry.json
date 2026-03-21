@@ -67,10 +67,10 @@
     {
       "id": "ns_auto_sign",
       "name": "自动签到",
-      "description": "每天首次访问网页时自动完成签到，支持碰运气模式。自动适配 NodeSeek 和 DeepFlood。",
-      "version": "1.0.1",
+      "description": "每天首次访问网页时自动完成签到，支持碰运气模式。使用原生请求防拦截。",
+      "version": "1.0.2",
       "author": "_RyF",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_auto_sign/1.0.1.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_auto_sign/1.0.2.user.js"
     }
   ]
 }
