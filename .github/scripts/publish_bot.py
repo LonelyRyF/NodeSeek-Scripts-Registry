@@ -22,19 +22,54 @@ def parse_issue_body(body):
     return data
 
 
-def parse_userscript_meta(content):
-    """从子脚本 JS 常量中解析 MODULE_ID / MODULE_NAME / MODULE_VERSION / MODULE_DESC"""
+def parse_js_meta(content):
+    """
+    从子脚本 JS 中解析元数据，兼容两种写法：
+    1. const MODULE_NAME = '...'  （常量定义）
+    2. API.register({ name: '...', ... })  （直接字面量）
+    优先取常量，常量不存在时回退到 register 块。
+    """
     meta = {}
-    patterns = {
+
+    # --- 方案一：常量定义 ---
+    const_patterns = {
         'id':      r"const\s+MODULE_ID\s*=\s*['\"]([^'\"]+)['\"]",
         'name':    r"const\s+MODULE_NAME\s*=\s*['\"]([^'\"]+)['\"]",
         'version': r"const\s+MODULE_VERSION\s*=\s*['\"]([^'\"]+)['\"]",
         'desc':    r"const\s+MODULE_DESC\s*=\s*['\"]([^'\"]+)['\"]",
     }
-    for key, pattern in patterns.items():
+    for key, pattern in const_patterns.items():
         m = re.search(pattern, content)
         if m:
             meta[key] = m.group(1).strip()
+
+    # --- 方案二：API.register({ ... }) 字面量（回退补全缺失字段）---
+    # 提取 API.register({ ... }) 块内容
+    reg_match = re.search(r'API\.register\s*\(\s*\{(.+?)\}\s*\)', content, re.DOTALL)
+    if reg_match:
+        block = reg_match.group(1)
+        register_patterns = {
+            'id':      r"\bid\s*:\s*['\"]([^'\"]+)['\"]",
+            'name':    r"\bname\s*:\s*['\"]([^'\"]+)['\"]",
+            'version': r"\bversion\s*:\s*['\"]([^'\"]+)['\"]",
+            'desc':    r"\bdescription\s*:\s*['\"]([^'\"]+)['\"]",
+        }
+        for key, pattern in register_patterns.items():
+            if key not in meta:  # 只补常量里没有的字段
+                m = re.search(pattern, block)
+                if m:
+                    meta[key] = m.group(1).strip()
+
+    # --- 方案三：id 兜底，从变量引用反查常量值 ---
+    # 比如 id: MODULE_ID，MODULE_ID 已在 meta 里了就跳过
+    if 'id' not in meta:
+        reg_id_var = re.search(r'\bid\s*:\s*([A-Z_]+)', content)
+        if reg_id_var:
+            var_name = reg_id_var.group(1)
+            var_val = re.search(rf"const\s+{var_name}\s*=\s*['\"]([^'\"]+)['\"]", content)
+            if var_val:
+                meta['id'] = var_val.group(1).strip()
+
     return meta
 
 
@@ -47,7 +82,6 @@ def main():
 
     data = parse_issue_body(issue_body)
 
-    name         = data.get("脚本名称", "").strip()
     author       = data.get("作者名", "").strip() or "unknown"
     file_section = data.get("脚本文件", "")
 
@@ -77,16 +111,20 @@ def main():
         print(f"Error downloading file: {e}")
         sys.exit(1)
 
-    # 从脚本内容解析元数据
-    meta = parse_userscript_meta(js_content)
+    # 解析元数据
+    meta = parse_js_meta(js_content)
     script_id = meta.get("id")
     version   = meta.get("version")
-    name      = meta.get("name")
+    name      = meta.get("name", "")
     desc      = meta.get("desc", "")
 
-    if not all([script_id, version, name]):
-        print(f"Error: could not parse MODULE_ID/MODULE_NAME/MODULE_VERSION from script. Got: {meta}")
+    if not all([script_id, version]):
+        print(f"Error: could not parse MODULE_ID/MODULE_VERSION from script. Got: {meta}")
         sys.exit(1)
+
+    # name 兜底：用 script_id
+    if not name:
+        name = script_id
 
     print(f"Parsed: id={script_id}, version={version}, name={name}")
 
