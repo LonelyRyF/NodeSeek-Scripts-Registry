@@ -1,8 +1,7 @@
 (function() {
     var API = window.NodeSeekUI;
     var UI = API.UI;
-    var MODULE_ID = 'ns_privacy_guard';
-    var STYLE_ID = MODULE_ID + '_css';
+    var MODULE_ID = 'ns-privacy-guard';
 
     var SCHEMA = [
         {
@@ -31,6 +30,19 @@
         { key: 'coverLastCommenter', type: 'switch', label: '处理最后评论者（列表页）', description: '对列表页最后评论者的名称进行处理', default: true },
         { key: 'coverPostPage', type: 'switch', label: '处理帖子详情页', description: '对帖子内容页中所有楼层的头像和名称进行处理', default: true }
     ];
+
+    var DEFAULT_CONFIG = {};
+    SCHEMA.forEach(function(item) { DEFAULT_CONFIG[item.key] = item.default; });
+
+    function getConfig() {
+        var saved = API.load(MODULE_ID, 'config', {});
+        // 用默认值填充缺失字段，兼容旧存储和全新安装
+        var cfg = {};
+        SCHEMA.forEach(function(item) {
+            cfg[item.key] = (saved[item.key] !== undefined) ? saved[item.key] : item.default;
+        });
+        return cfg;
+    }
 
     function applyToAvatar(imgEl, cfg) {
         if (!imgEl) return;
@@ -93,24 +105,38 @@
 
     function processPostAll(cfg) {
         if (!cfg.coverPostPage) return;
-        document.querySelectorAll('.post-item:not([data-ns-processed])').forEach(function(item) {
+        document.querySelectorAll('.content-item:not([data-ns-processed])').forEach(function(item) {
             processPostItem(item, cfg);
         });
     }
 
     function resetAll() {
-        document.querySelectorAll('[data-ns-privacy]').forEach(function(el) {
-            el.style.filter = '';
-            el.style.transition = '';
-            el.style.visibility = '';
-            el.style.userSelect = '';
-            el.removeAttribute('data-ns-privacy');
+        document.querySelectorAll('.post-list-item[data-ns-processed]').forEach(function(item) {
+            item.removeAttribute('data-ns-processed');
+            var img = item.querySelector('img.avatar-normal[data-ns-privacy]');
+            if (img) {
+                img.style.filter = '';
+                img.style.visibility = '';
+                img.removeAttribute('data-ns-privacy');
+            }
+            item.querySelectorAll('a[data-ns-privacy]').forEach(function(a) {
+                var orig = a.getAttribute('data-ns-orig-name');
+                if (orig) a.textContent = orig;
+                a.style.filter = '';
+                a.style.userSelect = '';
+                a.removeAttribute('data-ns-orig-name');
+                a.removeAttribute('data-ns-privacy');
+            });
         });
-        document.querySelectorAll('[data-ns-processed]').forEach(function(el) {
-            el.removeAttribute('data-ns-processed');
-        });
-        document.querySelectorAll('[data-ns-orig-name]').forEach(function(el) {
-            var nameEl = el.querySelector('.author-name') || el;
+        document.querySelectorAll('.content-item[data-ns-processed]').forEach(function(item) {
+            item.removeAttribute('data-ns-processed');
+            var img = item.querySelector('img.avatar-normal[data-ns-privacy]');
+            if (img) {
+                img.style.filter = '';
+                img.style.visibility = '';
+                img.removeAttribute('data-ns-privacy');
+            }
+            var nameEl = item.querySelector('.author-name[data-ns-privacy]');
             if (nameEl) {
                 var orig = nameEl.getAttribute('data-ns-orig-name');
                 if (orig) nameEl.textContent = orig;
@@ -140,20 +166,16 @@
         }
     }
 
-    function startService() {
-        var cfg = API.getConfig(MODULE_ID, SCHEMA);
-        processListAll(cfg);
-        processPostAll(cfg);
-        startObserver(cfg);
-    }
-
     function renderSettings(container) {
-        var cfg = API.getConfig(MODULE_ID, SCHEMA);
+        var cfg = getConfig();
         var form = UI.buildConfigForm(SCHEMA, cfg, function(newData) {
             API.store(MODULE_ID, 'config', newData);
             resetAll();
             stopObserver();
-            startService();
+            var newCfg = getConfig();
+            processListAll(newCfg);
+            processPostAll(newCfg);
+            startObserver(newCfg);
         });
         var fieldset = document.createElement('fieldset');
         fieldset.innerHTML = '<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">隐私保护</h2><p style="font-size:13px;color:#888;margin-bottom:16px;">隐藏或模糊页面中的用户头像与名称，保护浏览隐私。</p>';
@@ -164,20 +186,35 @@
     API.register({
         id: MODULE_ID,
         name: '隐私保护',
-        version: '1.4.0',
+        version: '1.3.0',
         description: '模糊或替换帖子列表及详情页中的用户头像和名称',
         render: renderSettings,
-        execute: function() {
-            startService();
-        },
         onToggle: function(enabled) {
             if (enabled) {
-                startService();
+                var cfg = getConfig();
+                processListAll(cfg);
+                processPostAll(cfg);
+                startObserver(cfg);
             } else {
                 resetAll();
                 stopObserver();
             }
         }
     });
+
+    (function run() {
+        var cfg = getConfig();
+        if (document.body) {
+            processListAll(cfg);
+            processPostAll(cfg);
+            startObserver(cfg);
+        } else {
+            document.addEventListener('DOMContentLoaded', function() {
+                processListAll(cfg);
+                processPostAll(cfg);
+                startObserver(cfg);
+            });
+        }
+    })();
 
 })();
