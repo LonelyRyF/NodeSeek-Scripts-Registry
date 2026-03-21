@@ -89,19 +89,8 @@
         removeBadges();
     }
 
-    API.register({
-        id: MODULE_ID,
-        name: MODULE_NAME,
-        version: MODULE_VERSION,
-        description: MODULE_DESC,
-        execute: function() {
-            initFeatures();
-        },
-        onToggle: function(enabled) {
-            if (enabled) initFeatures();
-            else stopFeatures();
-        },
-        render: function(container) {
+    function renderSettings(container) {
+
             const currentConfig = API.getConfig(MODULE_ID, SCHEMA);
             container.innerHTML = '';
             const fieldset = document.createElement('fieldset');
@@ -162,7 +151,21 @@
                 codeDisplay.textContent = val;
                 currentConfig.badgeColor = val;
             });
-        }
+    }
+
+    API.register({
+        id: MODULE_ID,
+        name: MODULE_NAME,
+        version: MODULE_VERSION,
+        description: MODULE_DESC,
+        execute: function() {
+            initFeatures();
+        },
+        onToggle: function(enabled) {
+            if (enabled) initFeatures();
+            else stopFeatures();
+        },
+        render: renderSettings
     });
 
 })();
