@@ -128,6 +128,20 @@
         document.querySelectorAll('.ns-pangu-bound').forEach(b => b.classList.remove('ns-pangu-bound'));
     }
 
+    function renderSettings(container) {
+
+            const cfg = API.getConfig(MODULE_ID, SCHEMA);
+            container.innerHTML = '';
+            const fieldset = document.createElement('fieldset');
+            fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
+            const form = API.UI.buildConfigForm(SCHEMA, cfg, (data) => {
+                API.store(MODULE_ID, 'config', data);
+                if (API.isEnabled(MODULE_ID)) startService();
+            });
+            fieldset.appendChild(form);
+            container.appendChild(fieldset);
+    }
+
     API.register({
         id: MODULE_ID,
         name: MODULE_NAME,
@@ -140,18 +154,7 @@
             if (enabled) startService();
             else stopService();
         },
-        render: function(container) {
-            const cfg = API.getConfig(MODULE_ID, SCHEMA);
-            container.innerHTML = '';
-            const fieldset = document.createElement('fieldset');
-            fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
-            const form = API.UI.buildConfigForm(SCHEMA, cfg, (data) => {
-                API.store(MODULE_ID, 'config', data);
-                if (API.isEnabled(MODULE_ID)) startService();
-            });
-            fieldset.appendChild(form);
-            container.appendChild(fieldset);
-        }
+        render: renderSettings
     });
 
 })();
