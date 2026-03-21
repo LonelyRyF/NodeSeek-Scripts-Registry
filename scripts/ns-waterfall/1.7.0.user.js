@@ -1,6 +1,8 @@
 (function () {
     'use strict';
 
+    const API = window.NodeSeekUI;
+
     const MODULE_ID = 'ns_waterfall';
     const MODULE_NAME = '瀑布流 & 引用跳转';
     const MODULE_VERSION = '1.6.0';
@@ -27,24 +29,21 @@
     ];
 
     // 缓存基座 API 实例，供存取配置使用
-    let nsAPI = null;
 
     // 替换为使用基座提供的 load/store 方法
     const getConfig = () => {
-        if (nsAPI) return { ...DEFAULT_CONFIG, ...nsAPI.load(MODULE_ID, 'config', {}) };
+        if (API) return { ...DEFAULT_CONFIG, ...API.load(MODULE_ID, 'config', {}) };
         return DEFAULT_CONFIG; // 兜底返回默认配置
     };
     
-    const saveConfig = (data) => {
-        if (nsAPI) nsAPI.store(MODULE_ID, 'config', data);
-    };
+    const saveConfig = (data) => API.store(MODULE_ID, 'config', data);
 
     // === 等待基座就绪后注册 ===
     const waitForUI = (cb, maxWait = 10000) => {
         // 云端模式下脚本直接运行在 window 上境，直接读取 window.NodeSeekUI
         if (window.NodeSeekUI) {
             nsAPI = window.NodeSeekUI;
-            return cb(nsAPI);
+            return cb(API);
         }
         
         const start = Date.now();
@@ -52,7 +51,7 @@
             if (window.NodeSeekUI) { 
                 clearInterval(timer); 
                 nsAPI = window.NodeSeekUI;
-                cb(nsAPI); 
+                cb(API); 
             } else if (Date.now() - start > maxWait) { 
                 clearInterval(timer); 
                 console.warn(`[${MODULE_NAME}] 基座未检测到，界面配置功能将不可用`); 
@@ -221,28 +220,6 @@
     };
 
     // === 注册到基座 ===
-    waitForUI((api) => {
-        api.register({
-            id: MODULE_ID,
-            name: MODULE_NAME,
-            version: MODULE_VERSION,
-            description: MODULE_DESC,
-            onToggle(enabled) {
-                if (enabled) initFeatures();
-                else { cleanupFns.forEach(fn => fn()); cleanupFns = []; }
-            },
-            render(container) {
-                const currentConfig = getConfig();
-                container.innerHTML = '';
-                const fieldset = document.createElement('fieldset');
-                fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
-                fieldset.appendChild(api.UI.buildConfigForm(CONFIG_SCHEMA, currentConfig, (data) => {
-                    saveConfig(data);
-                    if (api.isEnabled(MODULE_ID)) initFeatures();
-                }));
-                container.appendChild(fieldset);
-            }
-        });
 
         if (api.isEnabled(MODULE_ID)) initFeatures();
     });
