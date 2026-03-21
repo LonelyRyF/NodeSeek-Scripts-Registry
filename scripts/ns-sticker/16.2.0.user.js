@@ -1,6 +1,8 @@
 (function () {
     'use strict';
 
+    const API = window.NodeSeekUI;
+
     const MODULE_ID = 'ns_sticker';
     const MODULE_NAME = '自定义表情包';
     const MODULE_VERSION = '16.1.1';
@@ -15,13 +17,12 @@
         }
     ];
 
-    let nsAPI = null;
     let stickerObserver = null;
 
     // --- 存储桥接 ---
     const loadGroups = () => {
-        if (!nsAPI) return DEFAULT_GROUPS;
-        const raw = nsAPI.load(MODULE_ID, 'groups', null);
+        if (!API) return DEFAULT_GROUPS;
+        const raw = API.load(MODULE_ID, 'groups', null);
         if (!raw) return DEFAULT_GROUPS;
         try { 
             return typeof raw === 'string' ? JSON.parse(raw) : raw; 
@@ -31,7 +32,7 @@
     };
 
     const saveGroups = (groups) => {
-        if (nsAPI) nsAPI.store(MODULE_ID, 'groups', groups);
+        if (API) API.store(MODULE_ID, 'groups', groups);
     };
 
     // --- 工具：展开序列 ---
@@ -284,25 +285,5 @@
     // =================================================================
     // 启动与注册
     // =================================================================
-    const checkCore = setInterval(() => {
-        if (window.NodeSeekUI) {
-            clearInterval(checkCore);
-            nsAPI = window.NodeSeekUI;
-
-            nsAPI.register({
-                id: MODULE_ID,
-                name: MODULE_NAME,
-                version: MODULE_VERSION,
-                description: '在回复框中插入自定义表情包，支持多分组与序列模式。',
-                onToggle(enabled) {
-                    if (enabled) startService();
-                    else stopService();
-                },
-                render: (c) => renderSettings(c, nsAPI)
-            });
-
-            if (nsAPI.isEnabled(MODULE_ID)) startService();
-        }
-    }, 200);
 
 })();
