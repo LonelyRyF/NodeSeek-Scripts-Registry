@@ -22,26 +22,40 @@ def parse_issue_body(body):
     return data
 
 
+def parse_userscript_meta(content):
+    """从子脚本 JS 常量中解析 MODULE_ID / MODULE_NAME / MODULE_VERSION / MODULE_DESC"""
+    meta = {}
+    patterns = {
+        'id':      r"const\s+MODULE_ID\s*=\s*['\"]([^'\"]+)['\"]",
+        'name':    r"const\s+MODULE_NAME\s*=\s*['\"]([^'\"]+)['\"]",
+        'version': r"const\s+MODULE_VERSION\s*=\s*['\"]([^'\"]+)['\"]",
+        'desc':    r"const\s+MODULE_DESC\s*=\s*['\"]([^'\"]+)['\"]",
+    }
+    for key, pattern in patterns.items():
+        m = re.search(pattern, content)
+        if m:
+            meta[key] = m.group(1).strip()
+    return meta
+
+
 def main():
-    issue_body = os.getenv("ISSUE_BODY", "")
+    issue_body   = os.getenv("ISSUE_BODY", "")
+    issue_number = os.getenv("ISSUE_NUMBER", "")
     if not issue_body:
         print("Error: ISSUE_BODY not found")
         sys.exit(1)
 
     data = parse_issue_body(issue_body)
 
-    script_id    = data.get("脚本 ID", "").strip()
-    version      = data.get("版本号", "").strip()
     name         = data.get("脚本名称", "").strip()
     author       = data.get("作者名", "").strip() or "unknown"
-    desc         = data.get("脚本简述", "").strip()
     file_section = data.get("脚本文件", "")
 
-    if not all([script_id, version, name]):
-        print("Error: required fields missing")
+    if not file_section:
+        print("Error: file_upload field missing")
         sys.exit(1)
 
-    # 提取附件 URL，兼容 Markdown 图片/链接两种格式
+    # 提取附件 URL
     url_match = re.search(
         r'https://github\.com/user-attachments/[^\s\)\]]+',
         file_section
@@ -53,21 +67,37 @@ def main():
     file_url = url_match.group(0)
     print(f"File URL: {file_url}")
 
-    # 下载文件
+    # 下载文件内容
+    try:
+        req = urllib.request.Request(file_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req) as response:
+            raw_content = response.read()
+        js_content = raw_content.decode("utf-8", errors="replace")
+    except Exception as e:
+        print(f"Error downloading file: {e}")
+        sys.exit(1)
+
+    # 从脚本内容解析元数据
+    meta = parse_userscript_meta(js_content)
+    script_id = meta.get("id")
+    version   = meta.get("version")
+    name      = meta.get("name")
+    desc      = meta.get("desc", "")
+
+    if not all([script_id, version, name]):
+        print(f"Error: could not parse MODULE_ID/MODULE_NAME/MODULE_VERSION from script. Got: {meta}")
+        sys.exit(1)
+
+    print(f"Parsed: id={script_id}, version={version}, name={name}")
+
+    # 保存文件
     target_dir = f"scripts/{script_id}"
     os.makedirs(target_dir, exist_ok=True)
     file_path = f"{target_dir}/{version}.user.js"
 
-    try:
-        req = urllib.request.Request(file_url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req) as response:
-            content = response.read()
-        with open(file_path, "wb") as f:
-            f.write(content)
-        print(f"Saved to: {file_path}")
-    except Exception as e:
-        print(f"Error downloading file: {e}")
-        sys.exit(1)
+    with open(file_path, "wb") as f:
+        f.write(raw_content)
+    print(f"Saved to: {file_path}")
 
     # 更新 registry.json
     registry_path = "registry.json"
@@ -98,6 +128,13 @@ def main():
         json.dump(registry_data, f, indent=2, ensure_ascii=False)
 
     print("registry.json updated")
+
+    # 输出供 workflow 使用的变量
+    if issue_number:
+        with open(os.environ.get("GITHUB_OUTPUT", "/dev/null"), "a") as fh:
+            fh.write(f"script_id={script_id}\n")
+            fh.write(f"version={version}\n")
+            fh.write(f"issue_number={issue_number}\n")
 
 
 if __name__ == "__main__":
