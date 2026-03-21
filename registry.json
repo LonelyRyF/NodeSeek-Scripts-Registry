@@ -67,10 +67,10 @@
     {
       "id": "ns_beautify",
       "name": "UI 主站美化",
-      "description": "提供现代化的 UI 视觉增强，支持自定义模糊背景、主框架毛玻璃效果。",
-      "version": "1.0.1",
+      "description": "深度适配 NodeSeek 的全局美化插件。支持颗粒化开关：自定义背景、分块毛玻璃、圆形头像等，完美兼容日/夜间模式。",
+      "version": "1.1.0",
       "author": "_RyF",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_beautify/1.0.1.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_beautify/1.1.0.user.js"
     }
   ]
 }
