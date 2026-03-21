@@ -1,7 +1,7 @@
 (function() {
     var API = window.NodeSeekUI;
     var UI = API.UI;
-    var MODULE_ID = 'ns-privacy-guard';
+    var MODULE_ID = 'ns_privacy_guard';
 
     var SCHEMA = [
         {
@@ -30,11 +30,6 @@
         { key: 'coverLastCommenter', type: 'switch', label: '处理最后评论者（列表页）', description: '对列表页最后评论者的名称进行处理', default: true },
         { key: 'coverPostPage', type: 'switch', label: '处理帖子详情页', description: '对帖子内容页中所有楼层的头像和名称进行处理', default: true }
     ];
-
-    var DEFAULT_CONFIG = {};
-    SCHEMA.forEach(function(item) { DEFAULT_CONFIG[item.key] = item.default; });
-
-    function getConfig() { return API.getConfig(MODULE_ID, SCHEMA); }
 
     function applyToAvatar(imgEl, cfg) {
         if (!imgEl) return;
@@ -159,12 +154,12 @@
     }
 
     function renderSettings(container) {
-        var cfg = getConfig();
+        var cfg = API.getConfig(MODULE_ID, SCHEMA);
         var form = UI.buildConfigForm(SCHEMA, cfg, function(newData) {
             API.store(MODULE_ID, 'config', newData);
             resetAll();
             stopObserver();
-            var newCfg = getConfig();
+            var newCfg = API.getConfig(MODULE_ID, SCHEMA);
             processListAll(newCfg);
             processPostAll(newCfg);
             startObserver(newCfg);
@@ -178,15 +173,12 @@
     API.register({
         id: MODULE_ID,
         name: '隐私保护',
-        version: '1.3.0',
+        version: '1.4.0',
         description: '模糊或替换帖子列表及详情页中的用户头像和名称',
         render: renderSettings,
-        execute: function() {
-            startService();
-        },
-(enabled) {
+        onToggle: function(enabled) {
             if (enabled) {
-                var cfg = getConfig();
+                var cfg = API.getConfig(MODULE_ID, SCHEMA);
                 processListAll(cfg);
                 processPostAll(cfg);
                 startObserver(cfg);
@@ -194,8 +186,21 @@
                 resetAll();
                 stopObserver();
             }
+        },
+        execute: function() {
+            var cfg = API.getConfig(MODULE_ID, SCHEMA);
+            if (document.body) {
+                processListAll(cfg);
+                processPostAll(cfg);
+                startObserver(cfg);
+            } else {
+                document.addEventListener('DOMContentLoaded', function() {
+                    processListAll(cfg);
+                    processPostAll(cfg);
+                    startObserver(cfg);
+                });
+            }
         }
     });
-
 
 })();
