@@ -34,15 +34,7 @@
     var DEFAULT_CONFIG = {};
     SCHEMA.forEach(function(item) { DEFAULT_CONFIG[item.key] = item.default; });
 
-    function getConfig() {
-        var saved = API.load(MODULE_ID, 'config', {});
-        // 用默认值填充缺失字段，兼容旧存储和全新安装
-        var cfg = {};
-        SCHEMA.forEach(function(item) {
-            cfg[item.key] = (saved[item.key] !== undefined) ? saved[item.key] : item.default;
-        });
-        return cfg;
-    }
+    function getConfig() { return API.getConfig(MODULE_ID, SCHEMA); }
 
     function applyToAvatar(imgEl, cfg) {
         if (!imgEl) return;
@@ -189,7 +181,10 @@
         version: '1.3.0',
         description: '模糊或替换帖子列表及详情页中的用户头像和名称',
         render: renderSettings,
-        onToggle: function(enabled) {
+        execute: function() {
+            startService();
+        },
+(enabled) {
             if (enabled) {
                 var cfg = getConfig();
                 processListAll(cfg);
@@ -202,19 +197,5 @@
         }
     });
 
-    (function run() {
-        var cfg = getConfig();
-        if (document.body) {
-            processListAll(cfg);
-            processPostAll(cfg);
-            startObserver(cfg);
-        } else {
-            document.addEventListener('DOMContentLoaded', function() {
-                processListAll(cfg);
-                processPostAll(cfg);
-                startObserver(cfg);
-            });
-        }
-    })();
 
 })();
