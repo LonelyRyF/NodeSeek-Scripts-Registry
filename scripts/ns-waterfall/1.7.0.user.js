@@ -2,7 +2,6 @@
     'use strict';
 
     const API = window.NodeSeekUI;
-    const UI = API.UI;
 
     const MODULE_ID = 'ns_waterfall';
     const MODULE_NAME = '瀑布流 & 引用跳转';
@@ -188,22 +187,6 @@
         cleanupFns.push(() => document.removeEventListener('click', clickHandler, true));
     };
 
-    // --- 设置面板 ---
-    function renderSettings(container) {
-        const cfg = getConfig();
-        const form = UI.buildConfigForm(SCHEMA, cfg, (newData) => {
-            saveConfig(newData);
-            cleanup();
-            initFeatures();
-            API.showAlert('配置已保存并即时生效！');
-        });
-        
-        const fieldset = document.createElement('fieldset');
-        fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME}</h2><p style="font-size:13px;color:#888;margin-bottom:16px;">${MODULE_DESC}</p>`;
-        fieldset.appendChild(form);
-        container.appendChild(fieldset);
-    }
-
     // === 注册到基座 ===
     API.register({
         id: MODULE_ID,
@@ -211,7 +194,20 @@
         version: MODULE_VERSION,
         description: MODULE_DESC,
         
-        render: renderSettings,
+        render: function(container) {
+            const cfg = getConfig();
+            const form = API.UI.buildConfigForm(SCHEMA, cfg, (data) => {
+                saveConfig(data);
+                cleanup();
+                initFeatures();
+                API.showAlert('配置已保存并即时生效！');
+            });
+            
+            const fieldset = document.createElement('fieldset');
+            fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
+            fieldset.appendChild(form);
+            container.appendChild(fieldset);
+        },
         
         execute: function() {
             initFeatures();
