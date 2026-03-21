@@ -1,37 +1,37 @@
 (function () {
     'use strict';
 
-    const API = window.NodeSeekUI;
     const MODULE_ID = 'ns_sticker';
     const MODULE_NAME = '自定义表情包';
-    const MODULE_VERSION = '16.2.0';
-    const STYLE_ID = 'ns_sticker_css';
+    const MODULE_VERSION = '16.1.1';
 
     const DEFAULT_GROUPS = [
         {
-            tabName: '我的收藏',
+            tabName: "我的收藏",
             stickers: [
-                { name: '滑稽', url: 'https://i.imgur.com/example_funny.png' },
-                { name: '赞',   url: 'https://i.imgur.com/example_like.png' }
+                { name: "滑稽", url: "https://i.imgur.com/example_funny.png" },
+                { name: "赞",   url: "https://i.imgur.com/example_like.png" }
             ]
         }
     ];
 
+    let nsAPI = null;
     let stickerObserver = null;
 
     // --- 存储桥接 ---
     const loadGroups = () => {
-        const raw = API.load(MODULE_ID, 'groups', null);
+        if (!nsAPI) return DEFAULT_GROUPS;
+        const raw = nsAPI.load(MODULE_ID, 'groups', null);
         if (!raw) return DEFAULT_GROUPS;
-        try {
-            return typeof raw === 'string' ? JSON.parse(raw) : raw;
-        } catch {
-            return DEFAULT_GROUPS;
+        try { 
+            return typeof raw === 'string' ? JSON.parse(raw) : raw; 
+        } catch { 
+            return DEFAULT_GROUPS; 
         }
     };
 
     const saveGroups = (groups) => {
-        API.store(MODULE_ID, 'groups', groups);
+        if (nsAPI) nsAPI.store(MODULE_ID, 'groups', groups);
     };
 
     // --- 工具：展开序列 ---
@@ -49,10 +49,11 @@
     const REGISTRY = { tabs: [], panels: [], nativePanel: null, activeCustomIndex: -1 };
 
     function injectStyles() {
-        API.addStyle(
-            `.expression { flex-wrap: wrap !important; height: auto !important; white-space: normal !important; overflow-x: visible !important; row-gap: 8px; } .exp-item { margin-bottom: 2px !important; flex-shrink: 0 !important; } @media (max-width: 600px) { .expression { max-height: 120px; overflow-y: auto !important; } }`,
-            STYLE_ID
-        );
+        if (document.getElementById('ns-sticker-style-fix')) return;
+        const style = document.createElement('style');
+        style.id = 'ns-sticker-style-fix';
+        style.textContent = `.expression { flex-wrap: wrap !important; height: auto !important; white-space: normal !important; overflow-x: visible !important; row-gap: 8px; } .exp-item { margin-bottom: 2px !important; flex-shrink: 0 !important; } @media (max-width: 600px) { .expression { max-height: 120px; overflow-y: auto !important; } }`;
+        document.head.appendChild(style);
     }
 
     function insertSticker(text) {
@@ -98,9 +99,11 @@
         const vueId = nativeContentBox.getAttributeNames().find(n => n.startsWith('data-v-'));
         const referenceTab = tabBar.querySelector(SELECTORS.tabItem);
 
+        // 重置注册表
         REGISTRY.tabs = [];
         REGISTRY.panels = [];
 
+        // 拦截原生 Tab 点击
         Array.from(tabBar.children).forEach(t => {
             if (t.id !== 'ns-sticker-settings-btn') {
                 t.addEventListener('click', () => {
@@ -118,6 +121,7 @@
             panel.style.display = 'none';
             panel.dataset.loaded = 'false';
             if (vueId) panel.setAttribute(vueId, '');
+
             nativeContentBox.parentNode.insertBefore(panel, nativeContentBox.nextSibling);
             REGISTRY.panels.push(panel);
 
@@ -144,29 +148,30 @@
                         p.classList.toggle('open', i === idx);
                     });
                     REGISTRY.tabs.forEach((t, i) => t.classList.toggle('current-group', i === idx));
+                    Array.from(tabBar.children).forEach(el => {
+                        if (!el.classList.contains(SELECTORS.customClass)) el.classList.remove('current-group');
+                    });
 
+                    // 懒加载填充
                     if (panel.dataset.loaded === 'false') {
                         panel.dataset.loaded = 'true';
-                        const allStickers = [];
+                        const expandedStickers = [];
                         group.stickers.forEach(s => {
-                            if (s && s.mode === 'sequence') {
-                                expandSequence(s).forEach(item => allStickers.push(item));
-                            } else {
-                                const n = normalizeSticker(s);
-                                if (n) allStickers.push(n);
-                            }
+                            if (typeof s === 'object' && s.mode === 'sequence') expandedStickers.push(...expandSequence(s));
+                            else expandedStickers.push(s);
                         });
-                        allStickers.forEach(({ url, code }) => {
-                            const item = document.createElement('div');
-                            item.className = `exp-item ${SELECTORS.customClass}`;
-                            if (vueId) item.setAttribute(vueId, '');
+
+                        expandedStickers.forEach(s => {
+                            const item = normalizeSticker(s);
+                            if (!item) return;
                             const img = document.createElement('img');
-                            img.src = url;
-                            img.style.cssText = 'width:40px;height:40px;object-fit:contain;cursor:pointer;border-radius:4px;';
-                            img.title = code;
-                            img.onclick = () => insertSticker(code);
-                            item.appendChild(img);
-                            panel.appendChild(item);
+                            img.src = item.url;
+                            img.className = 'sticker';
+                            img.title = item.code;
+                            img.style.cssText = 'cursor: pointer; -webkit-tap-highlight-color: transparent;';
+                            img.onclick = (e) => { e.stopPropagation(); e.preventDefault(); insertSticker(item.code); };
+                            if (vueId) img.setAttribute(vueId, '');
+                            panel.appendChild(img);
                         });
                     }
                 }
@@ -176,19 +181,15 @@
             REGISTRY.tabs.push(tab);
         });
 
-        // 设置按钮
+        // 设置快捷按钮
         if (!document.getElementById('ns-sticker-settings-btn')) {
-            const settingsBtn = document.createElement('div');
-            settingsBtn.id = 'ns-sticker-settings-btn';
-            settingsBtn.className = SELECTORS.tabItem;
-            settingsBtn.innerText = '管理';
-            settingsBtn.style.cssText = 'color: #888; font-size: 11px;';
-            if (vueId) settingsBtn.setAttribute(vueId, '');
-            settingsBtn.onclick = (e) => {
-                e.stopPropagation();
-                window.location.hash = '#ns_sticker';
-            };
-            tabBar.appendChild(settingsBtn);
+            const btn = document.createElement('div');
+            btn.id = 'ns-sticker-settings-btn';
+            btn.className = 'exp-item';
+            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`;
+            btn.style.cssText = 'display: flex; align-items: center; justify-content: center; opacity: 0.5; margin-left: auto; cursor: pointer;';
+            btn.onclick = (e) => { e.stopPropagation(); location.hash = '#ns_sticker'; };
+            tabBar.appendChild(btn);
         }
     }
 
@@ -206,14 +207,13 @@
         if (stickerObserver) stickerObserver.disconnect();
         document.querySelectorAll(`.${SELECTORS.customClass}`).forEach(el => el.remove());
         document.getElementById('ns-sticker-settings-btn')?.remove();
-        API.removeStyle(STYLE_ID);
     }
 
     // =================================================================
-    // 设置面板逻辑
+    // 设置面板逻辑 (适配基座 UI)
     // =================================================================
-    function renderSettings(container) {
-        const { UI } = API;
+    function renderSettings(container, base) {
+        const { UI } = base;
         container.innerHTML = '';
         const fieldset = document.createElement('fieldset');
         fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME}</h2>`;
@@ -224,6 +224,7 @@
 
         let groups = JSON.parse(JSON.stringify(loadGroups()));
 
+        // 样式微调
         const compact = (el) => { el.style.padding = '3px 7px'; el.style.fontSize = '12px'; el.style.height = '28px'; return el; };
         const btnStyle = (el) => { el.style.padding = '3px 8px'; el.style.fontSize = '12px'; el.style.lineHeight = 'normal'; return el; };
 
@@ -232,12 +233,13 @@
             groups[gi].stickers.forEach((s, si) => {
                 const isSeq = s && s.mode === 'sequence';
                 const row = UI._el('div', { style: 'display: flex; gap: 4px; align-items: center; margin-bottom: 4px; flex-wrap: wrap;' });
+                
                 if (isSeq) {
                     const baseUrl = compact(UI.createInput({ value: s.baseUrl, placeholder: 'baseUrl', onChange: v => s.baseUrl = v }));
                     const start = compact(UI.createNumber({ value: s.start, onChange: v => s.start = v })); start.style.width = '50px';
                     const end = compact(UI.createNumber({ value: s.end, onChange: v => s.end = v })); end.style.width = '50px';
                     const del = btnStyle(UI.createButton({ text: '✕', type: 'danger', onClick: () => { groups[gi].stickers.splice(si, 1); rebuildCardBody(gi, cardBody); } }));
-                    row.append(UI._el('span', { text: '序', style: 'font-size:10px;color:#2ea44f' }), baseUrl, start, UI._el('span', { text: '~' }), end, del);
+                    row.append(UI._el('span', { text: '序', style: 'font-size:10px;color:#2ea44f' }), baseUrl, start, UI._el('span',{text:'~'}), end, del);
                 } else {
                     const name = compact(UI.createInput({ value: s.name, placeholder: '名', onChange: v => s.name = v })); name.style.width = '70px';
                     const url = compact(UI.createInput({ value: s.url, placeholder: 'URL', onChange: v => s.url = v }));
@@ -248,8 +250,8 @@
             });
             const footer = UI._el('div', { style: 'display:flex; gap:8px; margin-top:8px' });
             footer.append(
-                btnStyle(UI.createButton({ text: '+ 普通', onClick: () => { groups[gi].stickers.push({ name: '', url: '' }); rebuildCardBody(gi, cardBody); } })),
-                btnStyle(UI.createButton({ text: '+ 序列', onClick: () => { groups[gi].stickers.push({ mode: 'sequence', baseUrl: '', start: 1, end: 10, suffix: '.png', pad: 0 }); rebuildCardBody(gi, cardBody); } }))
+                btnStyle(UI.createButton({ text: '+ 普通', onClick: () => { groups[gi].stickers.push({name:'', url:''}); rebuildCardBody(gi, cardBody); } })),
+                btnStyle(UI.createButton({ text: '+ 序列', onClick: () => { groups[gi].stickers.push({mode:'sequence', baseUrl:'', start:1, end:10, suffix:'.png', pad:0}); rebuildCardBody(gi, cardBody); } }))
             );
             cardBody.appendChild(footer);
         }
@@ -257,12 +259,10 @@
         const render = () => {
             editorRoot.innerHTML = '';
             groups.forEach((g, gi) => {
-                const card = UI._el('div', { style: 'border:1px solid var(--border-color);border-radius:6px;padding:10px;margin-bottom:12px;' });
-                const head = UI._el('div', { style: 'display:flex;align-items:center;gap:8px;margin-bottom:8px;' });
-                const nameInput = compact(UI.createInput({ value: g.tabName, onChange: v => g.tabName = v }));
-                nameInput.style.width = '120px';
+                const card = UI._el('div', { style: 'border:1px solid var(--border-color); border-radius:6px; margin-bottom:10px; padding:10px; background:var(--glass-color)' });
+                const head = UI._el('div', { style: 'display:flex; gap:8px; align-items:center; margin-bottom:8px' });
                 head.append(
-                    nameInput,
+                    compact(UI.createInput({ value: g.tabName, onChange: v => g.tabName = v })),
                     btnStyle(UI.createButton({ text: '删除分组', type: 'danger', onClick: () => { groups.splice(gi, 1); render(); } }))
                 );
                 const body = UI._el('div');
@@ -270,10 +270,11 @@
                 card.append(head, body);
                 editorRoot.appendChild(card);
             });
+            
             const bottom = UI._el('div', { style: 'margin-top:15px; display:flex; gap:10px' });
             bottom.append(
-                UI.createButton({ text: '+ 添加分组', onClick: () => { groups.push({ tabName: '新分组', stickers: [] }); render(); } }),
-                UI.createButton({ text: '保存配置', type: 'primary', onClick: () => { saveGroups(groups); API.showAlert('配置已保存，刷新生效。'); } })
+                UI.createButton({ text: '+ 添加分组', onClick: () => { groups.push({tabName:'新分组', stickers:[]}); render(); } }),
+                UI.createButton({ text: '保存配置', type: 'primary', onClick: () => { saveGroups(groups); base.showAlert('配置已保存，刷新生效。'); } })
             );
             editorRoot.appendChild(bottom);
         };
@@ -283,19 +284,25 @@
     // =================================================================
     // 启动与注册
     // =================================================================
-    API.register({
-        id: MODULE_ID,
-        name: MODULE_NAME,
-        version: MODULE_VERSION,
-        description: '在回复框中插入自定义表情包，支持多分组与序列模式。',
-        execute: function() {
-            startService();
-        },
-        onToggle: function(enabled) {
-            if (enabled) startService();
-            else stopService();
-        },
-        render: renderSettings
-    });
+    const checkCore = setInterval(() => {
+        if (window.NodeSeekUI) {
+            clearInterval(checkCore);
+            nsAPI = window.NodeSeekUI;
+
+            nsAPI.register({
+                id: MODULE_ID,
+                name: MODULE_NAME,
+                version: MODULE_VERSION,
+                description: '在回复框中插入自定义表情包，支持多分组与序列模式。',
+                onToggle(enabled) {
+                    if (enabled) startService();
+                    else stopService();
+                },
+                render: (c) => renderSettings(c, nsAPI)
+            });
+
+            if (nsAPI.isEnabled(MODULE_ID)) startService();
+        }
+    }, 200);
 
 })();
