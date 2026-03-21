@@ -6,7 +6,7 @@
       "version": "3.2.0",
       "description": "自动在中英文之间添加空格。采用提取-占位-还原架构，完美保护 Markdown 语法及 @提及。",
       "author": "浅霖",
-      "file": "scripts/ns-pangu/3.2.0.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-pangu/3.2.0.user.js"
     },
     {
       "id": "ns-privacy-guard",
@@ -14,7 +14,7 @@
       "version": "1.4.0",
       "description": "模糊或替换帖子列表及详情页中的用户头像和名称",
       "author": "浅霖",
-      "file": "scripts/ns-privacy-guard/1.4.0.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-privacy-guard/1.4.0.user.js"
     },
     {
       "id": "ns-sticker",
@@ -22,7 +22,7 @@
       "version": "16.2.0",
       "description": "在回复编辑器中插入自定义表情包图片，支持多分组管理。",
       "author": "浅霖",
-      "file": "scripts/ns-sticker/16.2.0.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-sticker/16.2.0.user.js"
     },
     {
       "id": "ns-user-badge",
@@ -30,7 +30,7 @@
       "version": "0.4.3",
       "description": "在帖子作者昵称旁显示等级和加入天数，完美支持暗黑模式，可自定义颜色与展示项。",
       "author": "浅霖",
-      "file": "scripts/ns-user-badge/0.4.3.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-user-badge/0.4.3.user.js"
     },
     {
       "id": "ns-waterfall",
@@ -38,7 +38,7 @@
       "version": "1.7.0",
       "description": "提前预加载下一页数据，实现无缝瀑布流；修复跨页引用评论导致页面刷新的问题。",
       "author": "浅霖",
-      "file": "scripts/ns-waterfall/1.7.0.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-waterfall/1.7.0.user.js"
     }
   ]
 }
