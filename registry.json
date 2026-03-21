@@ -1,14 +1,6 @@
 {
   "scripts": [
     {
-      "id": "ns-ui-framework",
-      "name": "NodeSeek Setting Framework (UI基座)",
-      "version": "4.5",
-      "description": "NodeSeek / DeepFlood 扩展基座。支持沙盒穿透、Schema表单渲染、内置原生 UI 组件库、脚本市场。",
-      "author": "浅霖",
-      "file": "scripts/ns-ui-framework/4.5.user.js"
-    },
-    {
       "id": "ns-pangu",
       "name": "盘古排版助手",
       "version": "3.2.0",
