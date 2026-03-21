@@ -55,6 +55,14 @@
       "version": "1.0.0",
       "author": "_RyF",
       "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_exact_time/1.0.0.user.js"
+    },
+    {
+      "id": "ns_link_cleaner",
+      "name": "链接清理器",
+      "description": "净化 NodeSeek 和 DeepFlood 跳转链接，支持自动跳转",
+      "version": "1.2.0",
+      "author": "_RyF",
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_link_cleaner/1.2.0.user.js"
     }
   ]
 }
