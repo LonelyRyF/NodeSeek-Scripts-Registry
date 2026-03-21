@@ -2,7 +2,7 @@ name: Issue to PR (Plugin Publish)
 
 on:
   issues:
-    types: [labeled]
+    types: [labeled, edited]
 
 concurrency:
   group: publish-issue-${{ github.event.issue.number }}
@@ -15,7 +15,13 @@ permissions:
 
 jobs:
   build-and-pr:
-    if: github.event.label.name == 'Publish'
+    if: |
+      github.event.issue.state == 'open' &&
+      contains(github.event.issue.labels.*.name, 'Publish') &&
+      (
+        github.event.action == 'edited' ||
+        github.event.label.name == 'Publish'
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -67,4 +73,4 @@ jobs:
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.issue.number }}
-          body: "自动化打包失败。请检查是否正确上传了 `.user.js` 文件，且脚本内包含 MODULE_ID / MODULE_NAME / MODULE_VERSION 常量。详细报错请查看 Actions 日志。"
+          body: "自动化打包失败。请检查是否正确上传了 `.user.js` 文件，且脚本内包含 MODULE_ID / MODULE_VERSION 常量。详细报错请查看 Actions 日志。"

@@ -6,21 +6,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        感谢提交脚本！请填写下方信息并将 `.user.js` 文件拖入底部的上传框。
-        机器人会自动从脚本中解析 ID、版本号、简述，无需手动填写。
+        感谢提交脚本！请填写作者名并将 `.user.js` 文件拖入底部的上传框。
+        机器人会自动从脚本中解析 ID、版本号、名称、简述。
         等待仓库主审核 PR 后即可上线。
 
   - type: input
     id: name
-    attributes:
-      label: 脚本名称
-      description: 显示在脚本市场中的友好名称
-      placeholder: e.g. 隐私保护助手
-    validations:
-      required: true
-
-  - type: input
-    id: author
     attributes:
       label: 作者名
       description: 你的名字或昵称，将显示在脚本市场中
