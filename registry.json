@@ -39,6 +39,14 @@
       "description": "提前预加载下一页数据，实现无缝瀑布流；修复跨页引用评论导致页面刷新的问题。",
       "author": "浅霖",
       "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-waterfall/1.7.1.user.js"
+    },
+    {
+      "id": "ns_url_cleaner",
+      "name": "链接清理器",
+      "description": "净化 NodeSeek 和 DeepFlood 跳转链接，支持自动跳转",
+      "version": "1.2.0",
+      "author": "_RyF",
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_url_cleaner/1.2.0.user.js"
     }
   ]
 }
