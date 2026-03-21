@@ -288,14 +288,14 @@
         name: MODULE_NAME,
         version: MODULE_VERSION,
         description: '在回复框中插入自定义表情包，支持多分组与序列模式。',
-        execute() {
+        execute: function() {
             startService();
         },
-        onToggle(enabled) {
+        onToggle: function(enabled) {
             if (enabled) startService();
             else stopService();
         },
-        render: (c) => renderSettings(c)
+        render: function(c) { return renderSettings(c); }
     });
 
 })();
