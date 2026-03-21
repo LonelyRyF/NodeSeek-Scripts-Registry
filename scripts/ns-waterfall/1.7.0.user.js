@@ -1,11 +1,20 @@
 (function () {
     'use strict';
 
-    const API = window.NodeSeekUI;
     const MODULE_ID = 'ns_waterfall';
     const MODULE_NAME = '瀑布流 & 引用跳转';
-    const MODULE_VERSION = '1.7.0';
+    const MODULE_VERSION = '1.6.0';
     const MODULE_DESC = '提前预加载下一页数据，实现无缝瀑布流；修复跨页引用评论导致页面刷新的问题。';
+
+    const DEFAULT_CONFIG = {
+        enableWaterfall: true,
+        enableRefFix: true,
+        listThreshold: 6000,
+        postThreshold: 4000,
+        scrollThrottle: 100,
+        smoothScroll: false,
+        highlightDuration: 1500
+    };
 
     const CONFIG_SCHEMA = [
         { key: 'enableWaterfall', type: 'switch', label: '瀑布流自动加载', description: '滚动到底部时自动加载下一页内容', inlineLabel: '启用', default: true },
@@ -16,6 +25,41 @@
         { key: 'smoothScroll', type: 'switch', label: '平滑滚动', description: '引用跳转时使用平滑滚动动画，关闭则瞬间跳转', inlineLabel: '启用', default: false },
         { key: 'highlightDuration', type: 'number', label: '引用高亮时长 (ms)', description: '跳转到引用楼层后的高亮闪烁持续时间', min: 500, max: 5000, step: 500, default: 1500 }
     ];
+
+    // 缓存基座 API 实例，供存取配置使用
+    let nsAPI = null;
+
+    // 替换为使用基座提供的 load/store 方法
+    const getConfig = () => {
+        if (nsAPI) return { ...DEFAULT_CONFIG, ...nsAPI.load(MODULE_ID, 'config', {}) };
+        return DEFAULT_CONFIG; // 兜底返回默认配置
+    };
+    
+    const saveConfig = (data) => {
+        if (nsAPI) nsAPI.store(MODULE_ID, 'config', data);
+    };
+
+    // === 等待基座就绪后注册 ===
+    const waitForUI = (cb, maxWait = 10000) => {
+        // 云端模式下脚本直接运行在 window 上境，直接读取 window.NodeSeekUI
+        if (window.NodeSeekUI) {
+            nsAPI = window.NodeSeekUI;
+            return cb(nsAPI);
+        }
+        
+        const start = Date.now();
+        const timer = setInterval(() => {
+            if (window.NodeSeekUI) { 
+                clearInterval(timer); 
+                nsAPI = window.NodeSeekUI;
+                cb(nsAPI); 
+            } else if (Date.now() - start > maxWait) { 
+                clearInterval(timer); 
+                console.warn(`[${MODULE_NAME}] 基座未检测到，界面配置功能将不可用`); 
+                initFeatures(); 
+            }
+        }, 200);
+    };
 
     // === 工具函数 ===
     const throttle = (fn, ms) => {
@@ -30,10 +74,11 @@
     let cleanupFns = [];
 
     const initFeatures = () => {
+        // 清理上一轮的监听器（onToggle 重新启用时）
         cleanupFns.forEach(fn => fn());
         cleanupFns = [];
 
-        const cfg = API.getConfig(MODULE_ID, CONFIG_SCHEMA);
+        const cfg = getConfig();
 
         const PROFILES = {
             list: { path: /^\/(categories\/|page|award|search|$)/, threshold: cfg.listThreshold, next: ".nsk-pager a.pager-next", list: "ul.post-list:not(.topic-carousel-panel)", pagerTop: "div.nsk-pager.pager-top", pagerBot: "div.nsk-pager.pager-bottom" },
@@ -49,6 +94,7 @@
         let isBusy = false;
         let prevY = scrollY;
 
+        // --- 修复评论菜单 ---
         const processCommentMenus = (commentElements) => {
             if (!isPost || !commentElements?.length) return;
             const existingMenu = document.querySelector(".comment-menu");
@@ -63,62 +109,90 @@
                 try {
                     const menuInstance = new vue.$root.constructor(vue.$options);
                     if (typeof menuInstance.setIndex === "function") menuInstance.setIndex(startIndex + index);
-                    menuInstance.$mount(menuMount);
-                } catch (e) { console.warn('[ns-waterfall] menu mount failed', e); }
+                    if (typeof menuInstance.$mount === "function") menuInstance.$mount(menuMount);
+                } catch { }
             });
         };
 
-        const loadNextPage = async () => {
-            if (isBusy) return;
-            const nextLink = document.querySelector(profile.next);
-            if (!nextLink) return;
-            isBusy = true;
-            try {
-                const res = await fetch(nextLink.href);
-                const text = await res.text();
-                const doc = new DOMParser().parseFromString(text, 'text/html');
-                const newItems = doc.querySelectorAll(profile.list + ' > li');
-                const newPagerBot = doc.querySelector(profile.pagerBot);
-                const list = document.querySelector(profile.list);
-                if (!list || !newItems.length) { isBusy = false; return; }
-                const addedItems = [];
-                newItems.forEach(item => { list.appendChild(item); addedItems.push(item); });
-                processCommentMenus(addedItems);
-                const pagerBot = document.querySelector(profile.pagerBot);
-                const pagerTop = document.querySelector(profile.pagerTop);
-                if (newPagerBot) {
-                    if (pagerBot) pagerBot.replaceWith(newPagerBot.cloneNode(true));
-                    if (pagerTop) pagerTop.replaceWith(newPagerBot.cloneNode(true));
-                } else {
-                    if (pagerBot) pagerBot.remove();
-                    if (pagerTop) pagerTop.remove();
-                }
-                history.replaceState(null, '', nextLink.href);
-            } catch(e) { console.warn('[ns-waterfall] load failed', e); }
-            isBusy = false;
-        };
-
+        // --- 瀑布流 ---
         if (cfg.enableWaterfall) {
-            const scrollHandler = throttle(() => {
-                const dy = scrollY - prevY;
-                prevY = scrollY;
-                if (dy > 0 && (document.documentElement.scrollHeight - scrollY - innerHeight) < profile.threshold) {
-                    loadNextPage();
+            const loadNextPage = async () => {
+                if (isBusy) return;
+                const atBottom = document.documentElement.scrollHeight <= innerHeight + scrollY + profile.threshold;
+                if (!atBottom) return;
+                const nextBtn = document.querySelector(profile.next);
+                const nextUrl = nextBtn?.href;
+                if (!nextUrl) return;
+
+                isBusy = true;
+                try {
+                    const res = await fetch(nextUrl, { credentials: "include" });
+                    const html = await res.text();
+                    const doc = new DOMParser().parseFromString(html, "text/html");
+
+                    if (isPost) {
+                        const jsonStr = doc.getElementById("temp-script")?.textContent;
+                        if (jsonStr) {
+                            try {
+                                const decoded = decodeURIComponent(atob(jsonStr).split("").map(c => "%" + c.charCodeAt(0).toString(16).padStart(2, "0")).join(""));
+                                const parsed = JSON.parse(decoded);
+                                if (parsed?.postData?.comments && window.__config__?.postData?.comments) {
+                                    window.__config__.postData.comments.push(...parsed.postData.comments);
+                                }
+                            } catch (e) { console.error("解析新页面配置失败", e); }
+                        }
+                    }
+
+                    const srcList = doc.querySelector(profile.list);
+                    const dstList = document.querySelector(profile.list);
+                    if (srcList && dstList) {
+                        const appendedNodes = Array.from(srcList.children);
+                        dstList.append(...appendedNodes);
+                        processCommentMenus(appendedNodes);
+                    }
+
+                    [profile.pagerTop, profile.pagerBot].forEach(sel => {
+                        const srcPager = doc.querySelector(sel);
+                        const dstPager = document.querySelector(sel);
+                        if (srcPager && dstPager) dstPager.innerHTML = srcPager.innerHTML;
+                    });
+
+                    history.pushState(null, null, nextUrl);
+                } catch (e) {
+                    console.error("瀑布流加载失败:", e);
                 }
+                isBusy = false;
+            };
+
+            const scrollHandler = throttle(() => {
+                if (scrollY > prevY) loadNextPage();
+                prevY = scrollY;
             }, cfg.scrollThrottle);
-            window.addEventListener('scroll', scrollHandler, { passive: true });
-            cleanupFns.push(() => window.removeEventListener('scroll', scrollHandler));
+
+            window.addEventListener("scroll", scrollHandler, { passive: true });
+            cleanupFns.push(() => window.removeEventListener("scroll", scrollHandler));
         }
 
-        if (cfg.enableRefFix) {
-            const clickHandler = (e) => {
-                const link = e.target.closest('a[href]');
-                if (!link) return;
+        // --- 点击拦截 ---
+        const clickHandler = (e) => {
+            const a = e.target.closest('a');
+            if (!a) return;
+
+            // 分页器按钮强制刷新
+            if (a.closest('.nsk-pager')) {
+                a.target = '_self';
+                e.stopImmediatePropagation();
+                return;
+            }
+
+            // 楼层引用跳转修复
+            if (cfg.enableRefFix && isPost && a.href && a.href.includes('#')) {
                 try {
+                    const linkUrl = new URL(a.href, location.origin);
                     const currentUrl = new URL(location.href);
-                    const linkUrl = new URL(link.href, location.href);
                     const linkPostId = linkUrl.pathname.match(/\/post-(\d+)/)?.[1];
                     const currentPostId = currentUrl.pathname.match(/\/post-(\d+)/)?.[1];
+
                     if (linkPostId && linkPostId === currentPostId) {
                         const hashVal = linkUrl.hash.substring(1);
                         if (hashVal) {
@@ -127,6 +201,7 @@
                                 e.preventDefault();
                                 e.stopImmediatePropagation();
                                 targetEl.scrollIntoView({ behavior: cfg.smoothScroll ? 'smooth' : 'auto' });
+
                                 targetEl.style.transition = 'background-color 0.4s ease';
                                 const origBg = targetEl.style.backgroundColor || '';
                                 targetEl.style.backgroundColor = 'rgba(255, 152, 0, 0.2)';
@@ -138,38 +213,38 @@
                         }
                     }
                 } catch (err) { }
-            };
-            document.addEventListener('click', clickHandler, true);
-            cleanupFns.push(() => document.removeEventListener('click', clickHandler, true));
-        }
+            }
+        };
+
+        document.addEventListener('click', clickHandler, true);
+        cleanupFns.push(() => document.removeEventListener('click', clickHandler, true));
     };
 
-    function renderSettings(container) {
+    // === 注册到基座 ===
+    waitForUI((api) => {
+        api.register({
+            id: MODULE_ID,
+            name: MODULE_NAME,
+            version: MODULE_VERSION,
+            description: MODULE_DESC,
+            onToggle(enabled) {
+                if (enabled) initFeatures();
+                else { cleanupFns.forEach(fn => fn()); cleanupFns = []; }
+            },
+            render(container) {
+                const currentConfig = getConfig();
+                container.innerHTML = '';
+                const fieldset = document.createElement('fieldset');
+                fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
+                fieldset.appendChild(api.UI.buildConfigForm(CONFIG_SCHEMA, currentConfig, (data) => {
+                    saveConfig(data);
+                    if (api.isEnabled(MODULE_ID)) initFeatures();
+                }));
+                container.appendChild(fieldset);
+            }
+        });
 
-            const currentConfig = API.getConfig(MODULE_ID, CONFIG_SCHEMA);
-            container.innerHTML = '';
-            const fieldset = document.createElement('fieldset');
-            fieldset.innerHTML = `<h2 style="margin: 10px 0; border-bottom: 2px solid #2ea44f; padding-bottom: 8px;">${MODULE_NAME} 设置</h2>`;
-            fieldset.appendChild(API.UI.buildConfigForm(CONFIG_SCHEMA, currentConfig, (data) => {
-                API.store(MODULE_ID, 'config', data);
-                if (API.isEnabled(MODULE_ID)) initFeatures();
-            }));
-            container.appendChild(fieldset);
-    }
-
-    API.register({
-        id: MODULE_ID,
-        name: MODULE_NAME,
-        version: MODULE_VERSION,
-        description: MODULE_DESC,
-        execute: function() {
-            initFeatures();
-        },
-        onToggle: function(enabled) {
-            if (enabled) initFeatures();
-            else { cleanupFns.forEach(fn => fn()); cleanupFns = []; }
-        },
-        render: renderSettings
+        if (api.isEnabled(MODULE_ID)) initFeatures();
     });
 
 })();
