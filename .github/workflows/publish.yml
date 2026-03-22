@@ -28,7 +28,7 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install rjsmin
+        run: pip install rjsmin packaging
 
       - name: Run Publish Bot
         id: bot

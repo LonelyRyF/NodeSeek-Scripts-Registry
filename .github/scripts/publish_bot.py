@@ -4,6 +4,7 @@ import json
 import sys
 import urllib.request
 import rjsmin
+from packaging.version import Version, InvalidVersion
 
 
 def parse_issue_body(body):
@@ -47,9 +48,9 @@ def parse_js_meta(content):
 
 def version_tuple(v):
     try:
-        return tuple(int(x) for x in v.split('.'))
-    except Exception:
-        return (0,)
+        return Version(v)
+    except InvalidVersion:
+        return Version("0.0.0")
 
 
 def main():
