@@ -59,11 +59,10 @@ def main():
         sys.exit(1)
 
     data = parse_issue_body(issue_body)
-    script_id_input = data.get("脚本 ID", "").strip()
-    update_log      = data.get("更新日志", "").strip()
-    file_section    = data.get("脚本文件", "")
+    update_log   = data.get("更新日志", "").strip()
+    file_section = data.get("脚本文件", "")
 
-    if not script_id_input or not file_section:        print("Error: missing script_id or file")
+    if not file_section:        print("Error: missing script_id or file")
         sys.exit(1)
 
     # 校验身份
@@ -76,9 +75,9 @@ def main():
             except json.JSONDecodeError:
                 pass
 
-    owner = map_data.get(script_id_input)
+    owner = map_data.get(script_id)
     if owner is None:
-        print(f"Error: script_id '{script_id_input}' not found in map.json")
+        print(f"Error: script_id '{script_id}' not found in map.json. Rejected.")
         sys.exit(1)
 
     if owner.lower() != submitter.lower():
@@ -110,10 +109,6 @@ def main():
 
     if not all([script_id, new_version]):
         print(f"Error: could not parse MODULE_ID/MODULE_VERSION. Got: {meta}")
-        sys.exit(1)
-
-    if script_id != script_id_input:
-        print(f"Error: script ID in file '{script_id}' does not match issue input '{script_id_input}'")
         sys.exit(1)
 
     # 检查版本降级

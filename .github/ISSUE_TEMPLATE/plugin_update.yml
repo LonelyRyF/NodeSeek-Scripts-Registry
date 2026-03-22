@@ -1,16 +1,8 @@
 name: 更新脚本
 description: 提交新版本脚本文件
-title: "Update: {script_id}"
+title: "Update: 脚本更新"
 labels: ["Update"]
 body:
-  - type: input
-    id: script_id
-    attributes:
-      label: 脚本 ID
-      placeholder: e.g. ns-pangu
-    validations:
-      required: true
-
   - type: textarea
     id: update_log
     attributes:
