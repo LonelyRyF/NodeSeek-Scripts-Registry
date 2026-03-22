@@ -1,0 +1,149 @@
+(function() {
+    'use strict';
+
+    const API = window.NodeSeekUI;
+    if (!API) return;
+
+    const MODULE_ID = 'ns_link_cleaner';
+    const SCHEMA = [
+        {
+            key: 'cleanLinks',
+            type: 'switch',
+            label: '净化页面链接',
+            description: '将页面中的 /jump?to= 跳转链接替换为直链',
+            default: true
+        },
+        {
+            key: 'autoRedirect',
+            type: 'switch',
+            label: '自动跳转',
+            description: '访问 /jump 页面时直接跳转到目标地址',
+            default: false
+        }
+    ];
+
+    let observer = null;
+
+    function getTarget(url) {
+        try {
+            return new URL(url, location.origin).searchParams.get('to');
+        } catch {
+            return null;
+        }
+    }
+
+    function cleanLink(link) {
+        const href = link.getAttribute('href');
+        if (!href || !href.includes('/jump?to=')) return;
+
+        const target = getTarget(href);
+        if (!target) return;
+
+        link.href = target;
+        if (link.textContent.includes('/jump?to=')) {
+            link.textContent = target;
+        }
+    }
+
+    function cleanPage() {
+        document.querySelectorAll('a[href*="/jump?to="]').forEach(cleanLink);
+    }
+
+    function startObserver() {
+        if (observer || !document.body) return;
+
+        observer = new MutationObserver((mutations) => {
+            for (const { addedNodes } of mutations) {
+                for (const node of addedNodes) {
+                    if (node.nodeType !== 1) continue;
+                    if (node.tagName === 'A') cleanLink(node);
+                    node.querySelectorAll?.('a[href*="/jump?to="]').forEach(cleanLink);
+                }
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    function stopObserver() {
+        observer?.disconnect();
+        observer = null;
+    }
+
+    function apply() {
+        const config = API.getConfig(MODULE_ID, SCHEMA);
+
+        if (config.autoRedirect && location.pathname === '/jump') {
+            const target = getTarget(location.href);
+            if (target) {
+                location.replace(target);
+                return;
+            }
+        }
+
+        stopObserver();
+
+        if (config.cleanLinks) {
+            cleanPage();
+            startObserver();
+        }
+    }
+
+    API.register({
+        id: MODULE_ID,
+        name: '链接清理器',
+        version: '1.3.1',
+        description: '净化页面中的 /jump?to= 跳转链接，并可在跳转页自动跳转',
+        author: '_RyF',
+
+        render: function(container) {
+            container.innerHTML = '';
+            container.appendChild(
+                API.UI.buildConfigForm(SCHEMA, API.getConfig(MODULE_ID, SCHEMA), function(newConfig) {
+                    API.store(MODULE_ID, 'config', newConfig);
+                    apply();
+                    API.showAlert('配置已保存');
+                })
+            );
+        },
+
+        execute: function() {
+            apply();
+        },
+
+        onToggle: function(enabled) {
+            if (enabled) apply();
+            else stopObserver();
+        }
+    });
+})(); 链接替换为目标直链，并可在跳转页自动跳转。'
+            }));
+
+            const currentConfig = API.getConfig(MODULE_ID, SCHEMA);
+            const form = UI.buildConfigForm(SCHEMA, currentConfig, function(newConfig) {
+                API.store(MODULE_ID, 'config', newConfig);
+                stopObserver();
+                run();
+                API.showAlert('配置已保存');
+            });
+
+            container.appendChild(form);
+        },
+
+        execute: function() {
+            run();
+        },
+
+        onToggle: function(enabled) {
+            if (enabled) {
+                run();
+            } else {
+                stopObserver();
+            }
+        }
+    });
+})();cuteMain();
+            else teardown();
+        }
+    });
+})();
