@@ -3,17 +3,10 @@ description: 填写信息并上传文件，自动提交 PR 发布脚本
 title: "Publish: {plugin_name}"
 labels: ["Publish"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        感谢提交脚本！请填写插件信息并将 `.user.js` 文件拖入上传框。
-        机器人会自动从脚本中解析 ID、版本号，并以你的 GitHub 账号作为身份凭证。
-
   - type: input
     id: plugin_name
     attributes:
       label: 插件名称
-      description: 脚本的显示名称
       placeholder: e.g. 盘古排版助手
     validations:
       required: true
@@ -22,7 +15,6 @@ body:
     id: author
     attributes:
       label: 作者名
-      description: 你的名字或昵称，将显示在脚本市场中
       placeholder: e.g. 浅霖
     validations:
       required: true
@@ -31,7 +23,6 @@ body:
     id: description
     attributes:
       label: 插件主要作用
-      description: 简述这个脚本的功能
       placeholder: e.g. 自动在中英文之间添加空格
     validations:
       required: true
@@ -40,7 +31,6 @@ body:
     id: file_upload
     attributes:
       label: 脚本文件
-      description: 请将您的 `.user.js` 文件直接拖拽到下方输入框中上传
       placeholder: 将文件拖拽至此...
     validations:
       required: true

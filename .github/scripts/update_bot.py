@@ -60,10 +60,10 @@ def main():
 
     data = parse_issue_body(issue_body)
     script_id_input = data.get("脚本 ID", "").strip()
-    file_section    = data.get("新版本脚本文件", "")
+    update_log      = data.get("更新日志", "").strip()
+    file_section    = data.get("脚本文件", "")
 
-    if not script_id_input or not file_section:
-        print("Error: missing script_id or file")
+    if not script_id_input or not file_section:        print("Error: missing script_id or file")
         sys.exit(1)
 
     # 校验身份
@@ -148,6 +148,8 @@ def main():
     if existing:
         existing["version"] = new_version
         existing["url"] = new_url
+        if update_log:
+            existing["update_log"] = update_log
     else:
         scripts.append({"id": script_id, "version": new_version, "url": new_url})
 

@@ -3,25 +3,26 @@ description: 提交新版本脚本文件
 title: "Update: {script_id}"
 labels: ["Update"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        更新脚本版本。机器人会校验你的 GitHub 身份是否为原始发布者，并拒绝版本降级。
-
   - type: input
     id: script_id
     attributes:
       label: 脚本 ID
-      description: 脚本的唯一标识符（与发布时一致）
       placeholder: e.g. ns-pangu
+    validations:
+      required: true
+
+  - type: textarea
+    id: update_log
+    attributes:
+      label: 更新日志
+      placeholder: e.g. 修复了 xxx 问题
     validations:
       required: true
 
   - type: textarea
     id: file_upload
     attributes:
-      label: 新版本脚本文件
-      description: 请将新版本的 `.user.js` 文件直接拖拽到下方输入框中上传
+      label: 脚本文件
       placeholder: 将文件拖拽至此...
     validations:
       required: true
