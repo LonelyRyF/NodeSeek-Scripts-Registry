@@ -1,0 +1,13 @@
+labels:
+  - name: Publish
+    color: "0075ca"
+    description: 发布新脚本
+  - name: Update
+    color: "e4e669"
+    description: 更新脚本版本
+  - name: Delete
+    color: "d93f0b"
+    description: 删除脚本
+  - name: automated-pr
+    color: "ededed"
+    description: 由 bot 自动生成的 PR
