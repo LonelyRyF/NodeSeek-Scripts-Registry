@@ -149,7 +149,7 @@ def main():
         existing["version"] = new_version
         existing["url"] = new_url
     else:
-        scripts.append({"id": script_id, "version": new_version, "github": submitter, "url": new_url})
+        scripts.append({"id": script_id, "version": new_version, "url": new_url})
 
     registry_data["scripts"] = scripts
     with open(registry_path, "w", encoding="utf-8") as f:

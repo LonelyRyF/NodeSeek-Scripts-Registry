@@ -137,7 +137,6 @@ def main():
         "description": description,
         "version":     version,
         "author":      author,
-        "github":      submitter,
         "url":         f"https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/{file_path}"
     }
     scripts.append(new_entry)
