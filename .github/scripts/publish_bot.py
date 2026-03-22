@@ -3,6 +3,7 @@ import re
 import json
 import sys
 import urllib.request
+import rjsmin
 
 
 def parse_issue_body(body):
@@ -113,12 +114,20 @@ def main():
         sys.exit(1)
 
     # 保存文件
-    target_dir = f"scripts/{script_id}"
+    target_dir    = f"scripts/{script_id}"
     os.makedirs(target_dir, exist_ok=True)
-    file_path = f"{target_dir}/{version}.user.js"
-    with open(file_path, "wb") as f:
+    original_path = f"{target_dir}/{version}.original.user.js"
+    file_path     = f"{target_dir}/{version}.user.js"
+
+    with open(original_path, "wb") as f:
         f.write(raw_content)
-    print(f"Saved to: {file_path}")
+
+    minified = rjsmin.jsmin(js_content)
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(minified)
+
+    print(f"Saved original: {original_path}")
+    print(f"Saved minified: {file_path}")
 
     # 更新 registry.json
     registry_path = "registry.json"
