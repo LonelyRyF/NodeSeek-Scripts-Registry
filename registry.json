@@ -68,9 +68,10 @@
       "id": "ns_beautify",
       "name": "全站动态美化引擎",
       "description": "V2自由版：新增侧边栏专属保护机制，确保在透明度极低时侧边栏依然坚挺清晰。",
-      "version": "2.1.0",
+      "version": "2.3.0",
       "author": "_RyF",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_beautify/2.1.0.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_beautify/2.3.0.user.js",
+      "update_log": "算是一个完结了吧  小瑕疵没精力修了\n\n**重投一下**"
     }
   ]
 }
