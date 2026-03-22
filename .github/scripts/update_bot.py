@@ -23,15 +23,13 @@ def parse_issue_body(body):
 
 def parse_js_meta(content):
     meta = {}
-    const_patterns = {
-        'id':      r"const\s+MODULE_ID\s*=\s*['\"]([^'\"]+)['\"]",
-        'version': r"const\s+MODULE_VERSION\s*=\s*['\"]([^'\"]+)['\"]",
-    }
-    for key, pattern in const_patterns.items():
+    for key, pattern in [
+        ('id',      r"const\s+MODULE_ID\s*=\s*['\"]([^'\"]+)['\"]"),
+        ('version', r"const\s+MODULE_VERSION\s*=\s*['\"]([^'\"]+)['\"]"),
+    ]:
         m = re.search(pattern, content)
         if m:
             meta[key] = m.group(1).strip()
-
     reg_match = re.search(r'API\.register\s*\(\s*\{(.+?)\}\s*\)', content, re.DOTALL)
     if reg_match:
         block = reg_match.group(1)
@@ -61,16 +59,33 @@ def main():
         sys.exit(1)
 
     data = parse_issue_body(issue_body)
+    script_id_input = data.get("脚本 ID", "").strip()
+    file_section    = data.get("新版本脚本文件", "")
 
-    plugin_name  = data.get("插件名称", "").strip()
-    author       = data.get("作者名", "").strip() or "unknown"
-    description  = data.get("插件主要作用", "").strip()
-    file_section = data.get("脚本文件", "")
-
-    if not file_section:
-        print("Error: file_upload field missing")
+    if not script_id_input or not file_section:
+        print("Error: missing script_id or file")
         sys.exit(1)
 
+    # 校验身份
+    map_path = "map.json"
+    map_data = {}
+    if os.path.exists(map_path):
+        with open(map_path, "r", encoding="utf-8") as f:
+            try:
+                map_data = json.load(f)
+            except json.JSONDecodeError:
+                pass
+
+    owner = map_data.get(script_id_input)
+    if owner is None:
+        print(f"Error: script_id '{script_id_input}' not found in map.json")
+        sys.exit(1)
+
+    if owner.lower() != submitter.lower():
+        print(f"Error: submitter '{submitter}' is not the owner '{owner}' of script '{script_id_input}'. Rejected.")
+        sys.exit(1)
+
+    # 下载新文件
     url_match = re.search(
         r'https://github\.com/user-attachments/[^\s\)\]]+',
         file_section
@@ -91,36 +106,17 @@ def main():
 
     meta = parse_js_meta(js_content)
     script_id = meta.get("id")
-    version   = meta.get("version")
+    new_version = meta.get("version")
 
-    if not all([script_id, version]):
+    if not all([script_id, new_version]):
         print(f"Error: could not parse MODULE_ID/MODULE_VERSION. Got: {meta}")
         sys.exit(1)
 
-    # 加载 map.json，检查 name 重复
-    map_path = "map.json"
-    map_data = {}
-    if os.path.exists(map_path):
-        with open(map_path, "r", encoding="utf-8") as f:
-            try:
-                map_data = json.load(f)
-            except json.JSONDecodeError:
-                pass
-
-    if script_id in map_data:
-        print(f"Error: script_id '{script_id}' already exists in map.json. Rejecting duplicate publish.")
-        # 写一个特殊退出文件供 workflow 识别（通过 exit code 1 触发 failure comment）
+    if script_id != script_id_input:
+        print(f"Error: script ID in file '{script_id}' does not match issue input '{script_id_input}'")
         sys.exit(1)
 
-    # 保存文件
-    target_dir = f"scripts/{script_id}"
-    os.makedirs(target_dir, exist_ok=True)
-    file_path = f"{target_dir}/{version}.user.js"
-    with open(file_path, "wb") as f:
-        f.write(raw_content)
-    print(f"Saved to: {file_path}")
-
-    # 更新 registry.json
+    # 检查版本降级
     registry_path = "registry.json"
     registry_data = {"scripts": []}
     if os.path.exists(registry_path):
@@ -131,32 +127,40 @@ def main():
                 pass
 
     scripts = registry_data.get("scripts", [])
-    new_entry = {
-        "id":          script_id,
-        "name":        plugin_name or script_id,
-        "description": description,
-        "version":     version,
-        "author":      author,
-        "github":      submitter,
-        "url":         f"https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/{file_path}"
-    }
-    scripts.append(new_entry)
+    existing = next((s for s in scripts if s.get("id") == script_id), None)
+
+    if existing:
+        old_ver = existing.get("version", "0.0.0")
+        if version_tuple(new_version) <= version_tuple(old_ver):
+            print(f"Error: new version '{new_version}' is not higher than current '{old_ver}'. Rejected.")
+            sys.exit(1)
+
+    # 保存文件
+    target_dir = f"scripts/{script_id}"
+    os.makedirs(target_dir, exist_ok=True)
+    file_path = f"{target_dir}/{new_version}.user.js"
+    with open(file_path, "wb") as f:
+        f.write(raw_content)
+    print(f"Saved to: {file_path}")
+
+    # 更新 registry.json
+    new_url = f"https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/{file_path}"
+    if existing:
+        existing["version"] = new_version
+        existing["url"] = new_url
+    else:
+        scripts.append({"id": script_id, "version": new_version, "github": submitter, "url": new_url})
+
     registry_data["scripts"] = scripts
     with open(registry_path, "w", encoding="utf-8") as f:
         json.dump(registry_data, f, indent=2, ensure_ascii=False)
 
-    # 更新 map.json
-    map_data[script_id] = submitter
-    with open(map_path, "w", encoding="utf-8") as f:
-        json.dump(map_data, f, indent=2, ensure_ascii=False)
-
-    print(f"map.json updated: {script_id} -> {submitter}")
-    print(f"registry.json updated")
+    print("registry.json updated")
 
     if issue_number:
         with open(os.environ.get("GITHUB_OUTPUT", "/dev/null"), "a") as fh:
             fh.write(f"script_id={script_id}\n")
-            fh.write(f"version={version}\n")
+            fh.write(f"version={new_version}\n")
             fh.write(f"issue_number={issue_number}\n")
 
 

@@ -1,0 +1,69 @@
+name: Update Plugin
+
+on:
+  issues:
+    types: [labeled, edited]
+
+concurrency:
+  group: update-issue-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  update:
+    if: |
+      github.event.issue.state == 'open' &&
+      contains(github.event.issue.labels.*.name, 'Update') &&
+      (github.event.action == 'edited' || github.event.label.name == 'Update')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Run Update Bot
+        id: bot
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SUBMITTER: ${{ github.event.issue.user.login }}
+        run: python .github/scripts/update_bot.py
+
+      - name: Create Pull Request
+        if: steps.bot.outputs.script_id != ''
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "feat: update ${{ steps.bot.outputs.script_id }} to v${{ steps.bot.outputs.version }} from issue #${{ github.event.issue.number }}"
+          branch: "update/issue-${{ github.event.issue.number }}"
+          title: "自动更新: ${{ github.event.issue.title }}"
+          body: |
+            ## 自动化脚本更新
+            此 PR 由 Issue #${{ github.event.issue.number }} 自动生成。
+            - 更新者 GitHub 账号：`${{ github.event.issue.user.login }}`
+            - 脚本 ID：`${{ steps.bot.outputs.script_id }}`
+            - 新版本：`${{ steps.bot.outputs.version }}`
+
+            Closes #${{ github.event.issue.number }}
+          labels: automated-pr
+          delete-branch: true
+
+      - name: Comment Success
+        if: success() && steps.bot.outputs.script_id != ''
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: "更新打包成功！已生成 Pull Request 供仓库主审核，合并后即可生效。"
+
+      - name: Comment Failure
+        if: failure()
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: "更新失败，请查看 Actions 日志了解详情。"

@@ -1,0 +1,75 @@
+name: Delete Plugin
+
+on:
+  issues:
+    types: [labeled, edited]
+
+concurrency:
+  group: delete-issue-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  delete:
+    if: |
+      github.event.issue.state == 'open' &&
+      contains(github.event.issue.labels.*.name, 'Delete') &&
+      (github.event.action == 'edited' || github.event.label.name == 'Delete')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Run Delete Bot
+        id: bot
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SUBMITTER: ${{ github.event.issue.user.login }}
+        run: python .github/scripts/delete_bot.py
+
+      - name: Comment On Hold
+        if: steps.bot.outputs.on_hold == 'true'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body-path: /tmp/delete_comment.txt
+
+      - name: Create Pull Request
+        if: steps.bot.outputs.script_id != '' && steps.bot.outputs.on_hold != 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "feat: delete ${{ steps.bot.outputs.script_id }} from issue #${{ github.event.issue.number }}"
+          branch: "delete/issue-${{ github.event.issue.number }}"
+          title: "自动删除: ${{ github.event.issue.title }}"
+          body: |
+            ## 自动化脚本删除
+            此 PR 由 Issue #${{ github.event.issue.number }} 自动生成。
+            - 申请者 GitHub 账号：`${{ github.event.issue.user.login }}`
+            - 脚本 ID：`${{ steps.bot.outputs.script_id }}`
+
+            Closes #${{ github.event.issue.number }}
+          labels: automated-pr
+          delete-branch: true
+
+      - name: Comment Success
+        if: success() && steps.bot.outputs.script_id != ''
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: "删除 PR 已生成，等待仓库主审核合并。"
+
+      - name: Comment Failure
+        if: failure()
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: "处理失败，请查看 Actions 日志了解详情。"

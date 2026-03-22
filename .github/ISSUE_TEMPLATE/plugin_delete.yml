@@ -1,0 +1,26 @@
+name: 删除脚本
+description: 申请从脚本库中删除一个脚本
+title: "Delete: {script_id}"
+labels: ["Delete"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        申请删除脚本。只有原始发布者可以申请删除。
+
+  - type: input
+    id: script_id
+    attributes:
+      label: 脚本 ID
+      description: 要删除的脚本唯一标识符
+      placeholder: e.g. ns-pangu
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: ownership
+    attributes:
+      label: 身份确认
+      options:
+        - label: 此脚本为本人发布，我确认申请删除
+          required: false

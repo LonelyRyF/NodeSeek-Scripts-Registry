@@ -1,4 +1,4 @@
-name: Issue to PR (Plugin Publish)
+name: Publish Plugin
 
 on:
   issues:
@@ -14,21 +14,16 @@ permissions:
   issues: write
 
 jobs:
-  build-and-pr:
+  publish:
     if: |
       github.event.issue.state == 'open' &&
       contains(github.event.issue.labels.*.name, 'Publish') &&
-      (
-        github.event.action == 'edited' ||
-        github.event.label.name == 'Publish'
-      )
+      (github.event.action == 'edited' || github.event.label.name == 'Publish')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
@@ -37,9 +32,11 @@ jobs:
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SUBMITTER: ${{ github.event.issue.user.login }}
         run: python .github/scripts/publish_bot.py
 
       - name: Create Pull Request
+        if: steps.bot.outputs.script_id != ''
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -47,30 +44,28 @@ jobs:
           branch: "publish/issue-${{ github.event.issue.number }}"
           title: "自动发布: ${{ github.event.issue.title }}"
           body: |
-            ## 自动化脚本更新
+            ## 自动化脚本发布
             此 PR 由 Issue #${{ github.event.issue.number }} 自动生成。
+            - 发布者 GitHub 账号：`${{ github.event.issue.user.login }}`
+            - 脚本 ID：`${{ steps.bot.outputs.script_id }}`
+            - 版本：`${{ steps.bot.outputs.version }}`
 
-            - 已从脚本内容解析元数据（ID、版本号、名称、简述）。
-            - 已下载 `.user.js` 文件至对应目录。
-            - 已自动更新 `registry.json` 索引。
-
-            **请仓库管理员（@LonelyRyF）检查代码变动（Files changed），确认无误后点击 Merge 合并。**
+            **请仓库管理员检查代码变动，确认无误后合并。**
 
             Closes #${{ github.event.issue.number }}
-          labels: |
-            automated-pr
+          labels: automated-pr
           delete-branch: true
 
-      - name: Comment on Issue (Success)
-        if: success()
+      - name: Comment Success
+        if: success() && steps.bot.outputs.script_id != ''
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.issue.number }}
           body: "自动化打包成功！已生成 Pull Request 供仓库主审核，合并后即可生效。"
 
-      - name: Comment on Issue (Failure)
+      - name: Comment Failure
         if: failure()
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.issue.number }}
-          body: "自动化打包失败。请检查是否正确上传了 `.user.js` 文件，且脚本内包含 MODULE_ID / MODULE_VERSION 常量。详细报错请查看 Actions 日志。"
+          body: "自动化打包失败，请检查脚本文件是否包含 MODULE_ID / MODULE_VERSION 常量。详细报错请查看 Actions 日志。"
