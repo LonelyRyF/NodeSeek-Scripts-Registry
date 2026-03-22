@@ -51,21 +51,49 @@ def parse_version(v):
         return Version("0.0.0")
 
 
+def fail(msg):
+    print(f"Error: {msg}")
+    with open("/tmp/bot_error.txt", "w") as f:
+        f.write(msg)
+    sys.exit(1)
+
+
 def main():
     issue_body   = os.getenv("ISSUE_BODY", "")
     issue_number = os.getenv("ISSUE_NUMBER", "")
     submitter    = os.getenv("SUBMITTER", "")
 
     if not issue_body:
-        print("Error: ISSUE_BODY not found")
-        sys.exit(1)
+        fail("ISSUE_BODY not found")
 
     data = parse_issue_body(issue_body)
     update_log   = data.get("更新日志", "").strip()
     file_section = data.get("脚本文件", "")
 
-    if not file_section:        print("Error: missing script_id or file")
-        sys.exit(1)
+    if not file_section:
+        fail("脚本文件字段为空")
+
+    # 下载文件
+    url_match = re.search(r'https://github\.com/user-attachments/[^\s\)\]]+', file_section)
+    if not url_match:
+        fail("未找到有效的 GitHub 附件链接")
+
+    file_url = url_match.group(0)
+    try:
+        req = urllib.request.Request(file_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req) as response:
+            raw_content = response.read()
+        js_content = raw_content.decode("utf-8", errors="replace")
+    except Exception as e:
+        fail(f"下载文件失败: {e}")
+
+    # 从脚本解析 ID 和版本
+    meta = parse_js_meta(js_content)
+    script_id   = meta.get("id")
+    new_version = meta.get("version")
+
+    if not script_id or not new_version:
+        fail(f"无法从脚本中解析 MODULE_ID / MODULE_VERSION，解析结果: {meta}")
 
     # 校验身份
     map_path = "map.json"
@@ -79,39 +107,10 @@ def main():
 
     owner = map_data.get(script_id)
     if owner is None:
-        print(f"Error: script_id '{script_id}' not found in map.json. Rejected.")
-        sys.exit(1)
+        fail(f"脚本 '{script_id}' 不存在于注册表中")
 
     if owner.lower() != submitter.lower():
-        print(f"Error: submitter '{submitter}' is not the owner '{owner}' of script '{script_id_input}'. Rejected.")
-        sys.exit(1)
-
-    # 下载新文件
-    url_match = re.search(
-        r'https://github\.com/user-attachments/[^\s\)\]]+',
-        file_section
-    )
-    if not url_match:
-        print("Error: no valid GitHub attachment URL found")
-        sys.exit(1)
-
-    file_url = url_match.group(0)
-    try:
-        req = urllib.request.Request(file_url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req) as response:
-            raw_content = response.read()
-        js_content = raw_content.decode("utf-8", errors="replace")
-    except Exception as e:
-        print(f"Error downloading file: {e}")
-        sys.exit(1)
-
-    meta = parse_js_meta(js_content)
-    script_id = meta.get("id")
-    new_version = meta.get("version")
-
-    if not all([script_id, new_version]):
-        print(f"Error: could not parse MODULE_ID/MODULE_VERSION. Got: {meta}")
-        sys.exit(1)
+        fail(f"提交者 '{submitter}' 不是脚本 '{script_id}' 的原始发布者，已拒绝")
 
     # 检查版本降级
     registry_path = "registry.json"
@@ -123,14 +122,13 @@ def main():
             except json.JSONDecodeError:
                 pass
 
-    scripts = registry_data.get("scripts", [])
+    scripts  = registry_data.get("scripts", [])
     existing = next((s for s in scripts if s.get("id") == script_id), None)
 
     if existing:
         old_ver = existing.get("version", "0.0.0")
         if parse_version(new_version) <= parse_version(old_ver):
-            print(f"Error: new version '{new_version}' is not higher than current '{old_ver}'. Rejected.")
-            sys.exit(1)
+            fail(f"新版本 '{new_version}' 不高于当前版本 '{old_ver}'，已拒绝")
 
     # 保存文件
     target_dir    = f"scripts/{script_id}"
@@ -152,7 +150,7 @@ def main():
     new_url = f"https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/{file_path}"
     if existing:
         existing["version"] = new_version
-        existing["url"] = new_url
+        existing["url"]     = new_url
         if update_log:
             existing["update_log"] = update_log
     else:

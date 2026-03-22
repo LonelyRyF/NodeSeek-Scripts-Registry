@@ -53,14 +53,20 @@ def version_tuple(v):
         return Version("0.0.0")
 
 
+def fail(msg):
+    print(f"Error: {msg}")
+    with open("/tmp/bot_error.txt", "w") as f:
+        f.write(msg)
+    sys.exit(1)
+
+
 def main():
     issue_body   = os.getenv("ISSUE_BODY", "")
     issue_number = os.getenv("ISSUE_NUMBER", "")
     submitter    = os.getenv("SUBMITTER", "")
 
     if not issue_body:
-        print("Error: ISSUE_BODY not found")
-        sys.exit(1)
+        fail("ISSUE_BODY not found")
 
     data = parse_issue_body(issue_body)
 
@@ -70,16 +76,14 @@ def main():
     file_section = data.get("脚本文件", "")
 
     if not file_section:
-        print("Error: file_upload field missing")
-        sys.exit(1)
+        fail("file_upload field missing")
 
     url_match = re.search(
         r'https://github\.com/user-attachments/[^\s\)\]]+',
         file_section
     )
     if not url_match:
-        print("Error: no valid GitHub attachment URL found")
-        sys.exit(1)
+        fail("no valid GitHub attachment URL found")
 
     file_url = url_match.group(0)
     try:
@@ -88,16 +92,14 @@ def main():
             raw_content = response.read()
         js_content = raw_content.decode("utf-8", errors="replace")
     except Exception as e:
-        print(f"Error downloading file: {e}")
-        sys.exit(1)
+        fail(f"下载文件失败: {e}")
 
     meta = parse_js_meta(js_content)
     script_id = meta.get("id")
     version   = meta.get("version")
 
     if not all([script_id, version]):
-        print(f"Error: could not parse MODULE_ID/MODULE_VERSION. Got: {meta}")
-        sys.exit(1)
+        fail("could not parse MODULE_ID/MODULE_VERSION. Got: {meta}")
 
     # 加载 map.json，检查 name 重复
     map_path = "map.json"
@@ -110,9 +112,7 @@ def main():
                 pass
 
     if script_id in map_data:
-        print(f"Error: script_id '{script_id}' already exists in map.json. Rejecting duplicate publish.")
-        # 写一个特殊退出文件供 workflow 识别（通过 exit code 1 触发 failure comment）
-        sys.exit(1)
+        fail(f"脚本 ID '{script_id}' 已存在，禁止重复发布")
 
     # 保存文件
     target_dir    = f"scripts/{script_id}"

@@ -69,4 +69,4 @@ jobs:
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.issue.number }}
-          body: "更新失败，请查看 Actions 日志了解详情。"
+          body-path: /tmp/bot_error.txt

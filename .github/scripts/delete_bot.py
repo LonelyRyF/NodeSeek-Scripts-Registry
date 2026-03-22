@@ -21,21 +21,26 @@ def parse_issue_body(body):
     return data
 
 
+def fail(msg):
+    print(f"Error: {msg}")
+    with open("/tmp/bot_error.txt", "w") as f:
+        f.write(msg)
+    sys.exit(1)
+
+
 def main():
     issue_body   = os.getenv("ISSUE_BODY", "")
     issue_number = os.getenv("ISSUE_NUMBER", "")
     submitter    = os.getenv("SUBMITTER", "")
 
     if not issue_body:
-        print("Error: ISSUE_BODY not found")
-        sys.exit(1)
+        fail("ISSUE_BODY not found")
 
     data = parse_issue_body(issue_body)
     script_id = data.get("脚本 ID", "").strip()
 
     if not script_id:
-        print("Error: missing script_id")
-        sys.exit(1)
+        fail("脚本 ID 为空")
 
     # 解析勾选框
     ownership_section = data.get("身份确认", "")
@@ -54,25 +59,19 @@ def main():
 
     owner = map_data.get(script_id)
     if owner is None:
-        print(f"Error: script_id '{script_id}' not found in map.json")
-        sys.exit(1)
+        fail(f"脚本 '{script_id}' 不存在于注册表中")
 
     if not is_checked:
-        # 搁置：评论说明，不生成 PR
-        print(f"Delete request for '{script_id}' not confirmed (checkbox unchecked). Putting on hold.")
-        # 通过 exit 0 但不输出 script_id，让 workflow 跳过 PR 创建
-        # 写一个 hold 标记
+        # 搁置
+        print(f"Delete request for '{script_id}' not confirmed. Putting on hold.")
         with open(os.environ.get("GITHUB_OUTPUT", "/dev/null"), "a") as fh:
             fh.write("on_hold=true\n")
-        # 写评论内容到文件，供 workflow 读取
         with open("/tmp/delete_comment.txt", "w") as f:
             f.write("删除申请已收到，但你未勾选"此脚本为本人发布"确认框，申请已搁置。如确认为本人脚本，请重新编辑 Issue 并勾选确认框。")
         sys.exit(0)
 
-    # 已勾选，校验身份
     if owner.lower() != submitter.lower():
-        print(f"Error: submitter '{submitter}' is not the owner '{owner}'. Rejected.")
-        sys.exit(1)
+        fail(f"提交者 '{submitter}' 不是脚本 '{script_id}' 的原始发布者，已拒绝")
 
     # 从 registry.json 移除
     registry_path = "registry.json"

@@ -71,4 +71,4 @@ jobs:
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.issue.number }}
-          body: "自动化打包失败，请检查脚本文件是否包含 MODULE_ID / MODULE_VERSION 常量。详细报错请查看 Actions 日志。"
+          body-path: /tmp/bot_error.txt
