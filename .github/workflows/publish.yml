@@ -17,8 +17,10 @@ jobs:
   publish:
     if: |
       github.event.issue.state == 'open' &&
-      contains(github.event.issue.labels.*.name, 'Publish') &&
-      (github.event.action == 'edited' || github.event.label.name == 'Publish')
+      (
+        (github.event.action == 'labeled' && github.event.label.name == 'Publish') ||
+        (github.event.action == 'edited' && contains(github.event.issue.labels.*.name, 'Publish') && !contains(github.event.issue.labels.*.name, 'Update') && !contains(github.event.issue.labels.*.name, 'Delete'))
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

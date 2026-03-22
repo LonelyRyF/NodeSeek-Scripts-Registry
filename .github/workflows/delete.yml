@@ -17,8 +17,10 @@ jobs:
   delete:
     if: |
       github.event.issue.state == 'open' &&
-      contains(github.event.issue.labels.*.name, 'Delete') &&
-      (github.event.action == 'edited' || github.event.label.name == 'Delete')
+      (
+        (github.event.action == 'labeled' && github.event.label.name == 'Delete') ||
+        (github.event.action == 'edited' && contains(github.event.issue.labels.*.name, 'Delete') && !contains(github.event.issue.labels.*.name, 'Publish') && !contains(github.event.issue.labels.*.name, 'Update'))
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
