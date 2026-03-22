@@ -66,11 +66,11 @@
     },
     {
       "id": "ns_beautify",
-      "name": "UI 主站美化",
-      "description": "深度适配 NodeSeek 的全局美化插件。支持颗粒化开关：自定义背景、分块毛玻璃、圆形头像等，完美兼容日/夜间模式。",
-      "version": "1.1.0",
+      "name": "全站动态美化引擎",
+      "description": "V2自由版：新增侧边栏专属保护机制，确保在透明度极低时侧边栏依然坚挺清晰。",
+      "version": "2.1.0",
       "author": "_RyF",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_beautify/1.1.0.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_beautify/2.1.0.user.js"
     }
   ]
 }
