@@ -33,7 +33,7 @@
       "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-user-badge/0.4.3.user.js"
     },
     {
-      "id": "ns-waterfall",
+      "id": "ns_waterfall",
       "name": "瀑布流 & 引用跳转",
       "version": "1.7.1",
       "description": "提前预加载下一页数据，实现无缝瀑布流；修复跨页引用评论导致页面刷新的问题。",
