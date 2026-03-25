@@ -73,6 +73,14 @@
       "author": "_RyF",
       "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_beautify/2.3.0.user.js",
       "update_log": "算是一个完结了吧  小瑕疵没精力修了\n\n**重投一下**"
+    },
+    {
+      "id": "ns_conversation",
+      "name": "查看对话链",
+      "description": "在评论下添加对话入口，查看对话链",
+      "version": "1.3.0",
+      "author": "_RyF",
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_conversation/1.3.0.user.js"
     }
   ]
 }
