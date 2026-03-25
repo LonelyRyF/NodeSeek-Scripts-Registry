@@ -1,0 +1,446 @@
+(function () {
+    'use strict';
+
+    const API = window.NodeSeekUI;
+
+    const MODULE_ID = 'ns_waterfall';
+    const MODULE_NAME = '瀑布流 & 引用跳转';
+    const MODULE_VERSION = '2.0.3';
+    const MODULE_DESC = '无缝瀑布流加载，支持向上/向下翻页，帖子页翻到首页时加载主帖内容，修复跨页引用跳转。';
+
+    const SCHEMA = [
+        { key: 'enableWaterfall', type: 'switch', label: '向下瀑布流', description: '滚动到底部时自动加载下一页', default: true },
+        { key: 'enableReverse', type: 'switch', label: '向上瀑布流', description: '滚动到顶部时自动加载上一页，帖子页翻到第1页时加载主帖内容', default: true },
+        { key: 'enableRefFix', type: 'switch', label: '引用跳转修复', description: '修复跨页引用评论导致页面刷新的问题', default: true },
+        { key: 'enableCache', type: 'switch', label: '页面缓存', description: '缓存已加载页面到 IndexedDB，减少重复请求', default: false },
+        { key: 'cacheTTL', type: 'number', label: '缓存有效期 (分钟)', min: 1, max: 1440, step: 1, default: 5 },
+        { key: 'listThreshold', type: 'number', label: '列表页触发距离 (px)', description: '距底部多少 px 时加载下一页', min: 500, max: 20000, step: 500, default: 6000 },
+        { key: 'postThreshold', type: 'number', label: '帖子页触发距离 (px)', description: '距底部多少 px 时加载下一页', min: 500, max: 20000, step: 500, default: 4000 },
+        { key: 'reverseThreshold', type: 'number', label: '向上触发距离 (px)', description: '距顶部多少 px 时加载上一页', min: 200, max: 5000, step: 200, default: 1500 },
+        { key: 'scrollThrottle', type: 'number', label: '滚动节流 (ms)', min: 50, max: 500, step: 50, default: 100 },
+        { key: 'smoothScroll', type: 'switch', label: '平滑滚动', description: '引用跳转时使用平滑滚动', default: false },
+        { key: 'highlightDuration', type: 'number', label: '引用高亮时长 (ms)', min: 500, max: 5000, step: 500, default: 1500 }
+    ];
+
+    let cleanupFns = [];
+    let waterfallPaused = false;
+
+    const getConfig = () => API.getConfig(MODULE_ID, SCHEMA);
+    const saveConfig = (data) => API.store(MODULE_ID, 'config', data);
+
+    const throttle = (fn, ms) => {
+        let last = 0;
+        return (...a) => { const now = Date.now(); if (now - last >= ms) { last = now; fn(...a); } };
+    };
+
+    const urlKey = (url) => { try { return new URL(url, location.origin).pathname; } catch { return url; } };
+
+    const resolveHref = (el) => {
+        if (!el) return null;
+        const raw = el.getAttribute('href');
+        if (!raw) return null;
+        try { return new URL(raw, location.origin).href; } catch { return null; }
+    };
+
+    // ── IndexedDB 缓存 ──
+    const PageCache = (() => {
+        const DB = 'ns-waterfall-cache', STORE = 'pages';
+        let _db = null;
+        const open = () => _db ? Promise.resolve(_db) : new Promise((res, rej) => {
+            const r = indexedDB.open(DB, 1);
+            r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains(STORE)) r.result.createObjectStore(STORE, { keyPath: 'key' }); };
+            r.onsuccess = () => { _db = r.result; res(_db); };
+            r.onerror = () => rej(r.error);
+        });
+        return {
+            async get(key, ttl) {
+                const db = await open();
+                return new Promise(res => {
+                    const r = db.transaction(STORE).objectStore(STORE).get(key);
+                    r.onsuccess = () => { const d = r.result; res(d && Date.now() - d.ts < ttl ? d.html : null); };
+                    r.onerror = () => res(null);
+                });
+            },
+            async set(key, html) {
+                const db = await open();
+                return new Promise(res => {
+                    const tx = db.transaction(STORE, 'readwrite');
+                    tx.objectStore(STORE).put({ key, html, ts: Date.now() });
+                    tx.oncomplete = res; tx.onerror = res;
+                });
+            },
+            async clear() {
+                const db = await open();
+                return new Promise(res => {
+                    const tx = db.transaction(STORE, 'readwrite');
+                    tx.objectStore(STORE).clear();
+                    tx.oncomplete = res; tx.onerror = res;
+                });
+            }
+        };
+    })();
+
+    const cleanup = () => { cleanupFns.forEach(f => f()); cleanupFns = []; };
+
+    const injectToggleButton = () => {
+        const group = document.getElementById('fast-nav-button-group');
+        if (!group || document.getElementById('waterfall-toggle-btn')) return;
+        const btn = document.createElement('div');
+        btn.id = 'waterfall-toggle-btn';
+        btn.className = 'nav-item-btn';
+        btn.style.cssText = 'display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;width:36px;height:36px;';
+        const render = () => {
+            const on = !waterfallPaused, c = on ? '#2ea44f' : '#999';
+            btn.title = on ? '瀑布流已启用（点击暂停）' : '瀑布流已暂停（点击恢复）';
+            btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2C12 2 4 8 4 14a8 8 0 0016 0c0-6-8-12-8-12z"/>
+                ${!on ? '<line x1="4" y1="4" x2="20" y2="20" stroke="#999" stroke-width="2.5"/>' : ''}
+            </svg>`;
+        };
+        render();
+        btn.addEventListener('click', () => { waterfallPaused = !waterfallPaused; render(); });
+        group.insertBefore(btn, document.getElementById('back-to-top') || group.firstChild);
+        cleanupFns.push(() => btn.remove());
+    };
+
+    const initFeatures = () => {
+        cleanup();
+        const cfg = getConfig();
+
+        const PROFILES = {
+            list: { path: /^\/(categories\/|page|award|search|$)/, threshold: cfg.listThreshold, list: 'ul.post-list:not(.topic-carousel-panel)', pagerSels: ['div.nsk-pager.pager-top', 'div.nsk-pager.pager-bottom'] },
+            post: { path: /^\/post-/, threshold: cfg.postThreshold, list: 'ul.comments', pagerSels: ['div.nsk-pager.post-top-pager', 'div.nsk-pager.post-bottom-pager'] }
+        };
+
+        const isPost = PROFILES.post.path.test(location.pathname);
+        const isList = !isPost && PROFILES.list.path.test(location.pathname);
+        const profile = isPost ? PROFILES.post : isList ? PROFILES.list : null;
+        if (!profile) return;
+
+        injectToggleButton();
+
+        let busy = false;
+        let prevScrollY = scrollY;
+        const loaded = new Set([urlKey(location.href)]);
+
+        const getPagerA = (dir) => {
+            for (const sel of profile.pagerSels) {
+                const a = document.querySelector(`${sel} a.pager-${dir}`);
+                if (a) return a.href;
+            }
+            return null;
+        };
+        let nextUrl = getPagerA('next');
+        let prevUrl = getPagerA('prev');
+
+        const fetchDoc = async (url) => {
+            const key = urlKey(url);
+            let html = cfg.enableCache ? await PageCache.get(key, cfg.cacheTTL * 60000) : null;
+            if (!html) {
+                html = await (await fetch(url, { credentials: 'include' })).text();
+                if (cfg.enableCache) PageCache.set(key, html).catch(() => {});
+            }
+            return new DOMParser().parseFromString(html, 'text/html');
+        };
+
+        const updatePagerDisplay = (doc) => {
+            for (const sel of profile.pagerSels) {
+                const src = doc.querySelector(sel);
+                const dst = document.querySelector(sel);
+                if (!src || !dst) continue;
+                dst.innerHTML = src.innerHTML;
+                const makeBtn = (dir, url) => {
+                    const old = dst.querySelector(`a.pager-${dir}, span.pager-${dir}`);
+                    if (!old) return;
+                    if (url) {
+                        const a = document.createElement('a');
+                        a.className = `pager-${dir}`; a.href = url;
+                        a.innerHTML = old.innerHTML; old.replaceWith(a);
+                    } else {
+                        const span = document.createElement('span');
+                        span.className = `pager-${dir}`; span.setAttribute('aria-disabled', 'true');
+                        span.innerHTML = old.innerHTML; old.replaceWith(span);
+                    }
+                };
+                makeBtn('prev', prevUrl);
+                makeBtn('next', nextUrl);
+            }
+        };
+
+        const syncPagerCurrent = (curPageUrl) => {
+            const pageNum = String(
+                curPageUrl.match(/\/post-\d+-(\d+)/)?.[1] ||
+                curPageUrl.match(/\/page\/(\d+)/)?.[1] ||
+                '1'
+            );
+            for (const sel of profile.pagerSels) {
+                const pager = document.querySelector(sel);
+                if (!pager) continue;
+                pager.querySelectorAll('.pager-pos').forEach(el => {
+                    const num = el.textContent.trim();
+                    const isCur = num === pageNum;
+                    const wasCur = el.tagName === 'SPAN';
+                    if (isCur === wasCur) return;
+                    if (isCur) {
+                        const span = document.createElement('span');
+                        span.className = el.className.includes('pager-cur') ? el.className : el.className + ' pager-cur';
+                        span.setAttribute('aria-current', 'page');
+                        span.setAttribute('href', el.getAttribute('href') || '');
+                        span.textContent = el.textContent;
+                        el.replaceWith(span);
+                    } else {
+                        const a = document.createElement('a');
+                        a.className = el.className.replace(/\s*pager-cur\s*/g, ' ').trim();
+                        a.setAttribute('aria-current', 'page');
+                        const raw = el.getAttribute('href');
+                        a.href = raw ? new URL(raw, location.origin).href
+                            : location.href.replace(/\/post-(\d+)-\d+/, `/post-$1-${num}`);
+                        a.textContent = el.textContent;
+                        el.replaceWith(a);
+                    }
+                });
+            }
+        };
+
+        // ── markers：按 DOM 从上到下顺序 ──
+        const markers = [{ url: location.href, el: null }];
+        let displayUrl = location.href;
+
+        const getMarkerTop = (m) => {
+            if (m.el) return m.el.getBoundingClientRect().top + scrollY;
+            const list = document.querySelector(profile.list);
+            const first = list && Array.from(list.children).find(c => !c.classList.contains('wf-page-marker'));
+            return first ? first.getBoundingClientRect().top + scrollY : 0;
+        };
+
+        const updateDisplayUrl = () => {
+            const mid = scrollY + innerHeight / 2;
+            let matched = markers[0];
+            for (const m of markers) {
+                if (getMarkerTop(m) <= mid) matched = m;
+                else break;
+            }
+            if (displayUrl !== matched.url) {
+                displayUrl = matched.url;
+                history.replaceState(null, '', matched.url);
+                syncPagerCurrent(matched.url);
+            }
+        };
+
+        const makeMarker = (url) => {
+            const el = document.createElement('div');
+            el.className = 'wf-page-marker';
+            el.style.cssText = 'height:0;overflow:hidden;pointer-events:none;';
+            el.dataset.url = url;
+            return el;
+        };
+
+        // 找视口内第一个可见的列表子元素作为锚点
+        const findAnchor = (list) => {
+            for (const child of list.children) {
+                if (child.classList.contains('wf-page-marker')) continue;
+                const rect = child.getBoundingClientRect();
+                if (rect.bottom > 0) return { el: child, offset: rect.top };
+            }
+            return null;
+        };
+
+        // 插入后把锚点元素还原到原来的视口位置
+        const restoreByAnchor = (anchor) => {
+            if (!anchor) return;
+            const diff = anchor.el.getBoundingClientRect().top - anchor.offset;
+            if (diff !== 0) window.scrollBy(0, diff);
+        };
+
+        // ── Vue 评论菜单 ──
+        let vueCache = null;
+        const getVue = () => {
+            if (vueCache) return vueCache;
+            const v = document.querySelector('.comment-menu')?.__vue__;
+            if (v?.$root?.constructor && v?.$options) vueCache = { C: v.$root.constructor, o: v.$options };
+            return vueCache;
+        };
+        const mountMenu = (el, idx) => {
+            const v = getVue(); if (!v) return;
+            if (el.querySelector('.comment-menu-mount .comment-menu')) return;
+            let m = el.querySelector('.comment-menu-mount');
+            if (!m) { m = document.createElement('div'); m.className = 'comment-menu-mount'; el.appendChild(m); }
+            try { const i = new v.C(v.o); i.setIndex?.(idx); i.$mount?.(m); } catch {}
+        };
+        const reindexMenus = () => {
+            if (!isPost) return;
+            document.querySelectorAll('.content-item').forEach((el, i) => {
+                const v = el.querySelector('.comment-menu')?.__vue__;
+                if (v?.setIndex) v.setIndex(i); else mountMenu(el, i);
+            });
+        };
+        const mountAppended = (nodes) => {
+            if (!isPost) return;
+            const items = nodes.filter(n => n.classList?.contains('content-item'));
+            const base = document.querySelectorAll('.content-item').length - items.length;
+            items.forEach((el, i) => mountMenu(el, base + i));
+        };
+
+        const parseConfig = (doc) => {
+            const raw = doc.getElementById('temp-script')?.textContent;
+            if (!raw) return null;
+            try { return JSON.parse(decodeURIComponent(atob(raw).split('').map(c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')).join(''))); }
+            catch { return null; }
+        };
+
+        const injectPostBody = (doc) => {
+            if (document.getElementById('0')) return;
+            const src = doc.getElementById('0');
+            if (!src) return;
+            const postTitle = document.querySelector('.nsk-post .post-title');
+            if (postTitle) { postTitle.insertAdjacentElement('afterend', src); mountMenu(src, 0); }
+        };
+
+        // ── 向下加载 ──
+        const loadNext = async () => {
+            if (busy || waterfallPaused || !nextUrl || loaded.has(urlKey(nextUrl))) return;
+            if (document.documentElement.scrollHeight > innerHeight + scrollY + profile.threshold) return;
+            busy = true;
+            const url = nextUrl;
+            try {
+                const doc = await fetchDoc(url);
+                loaded.add(urlKey(url));
+                nextUrl = resolveHref(doc.querySelector('a.pager-next'));
+
+                if (isPost) {
+                    const c = parseConfig(doc);
+                    if (c?.postData?.comments && window.__config__?.postData?.comments)
+                        window.__config__.postData.comments.push(...c.postData.comments);
+                }
+
+                const srcList = doc.querySelector(profile.list);
+                const dstList = document.querySelector(profile.list);
+                if (srcList && dstList) {
+                    const anchor = findAnchor(dstList);
+                    const marker = makeMarker(url);
+                    dstList.appendChild(marker);
+                    markers.push({ url, el: marker });
+                    const nodes = Array.from(srcList.children);
+                    dstList.append(...nodes);
+                    mountAppended(nodes);
+                    restoreByAnchor(anchor);
+                }
+                updatePagerDisplay(doc);
+            } catch (e) { console.error('[wf↓]', e); }
+            busy = false;
+        };
+
+        // ── 向上加载 ──
+        const loadPrev = async () => {
+            if (busy || waterfallPaused || !prevUrl || loaded.has(urlKey(prevUrl))) return;
+            if (scrollY > cfg.reverseThreshold) return;
+            busy = true;
+            const url = prevUrl;
+            try {
+                const doc = await fetchDoc(url);
+                loaded.add(urlKey(url));
+                prevUrl = resolveHref(doc.querySelector('a.pager-prev'));
+
+                const srcList = doc.querySelector(profile.list);
+                const dstList = document.querySelector(profile.list);
+                if (!srcList || !dstList) { busy = false; return; }
+
+                if (isPost) {
+                    const c = parseConfig(doc);
+                    if (c?.postData?.comments && window.__config__?.postData?.comments)
+                        window.__config__.postData.comments.unshift(...c.postData.comments);
+                    if (/\/post-\d+-1(?:[?#]|$)/.test(url)) injectPostBody(doc);
+                }
+
+                const anchor = findAnchor(dstList);
+                const nodes = Array.from(srcList.children);
+                const marker = makeMarker(url);
+                dstList.prepend(marker, ...nodes);
+                markers.unshift({ url, el: marker });
+                restoreByAnchor(anchor);
+
+                if (isPost) reindexMenus();
+                updatePagerDisplay(doc);
+            } catch (e) { console.error('[wf↑]', e); }
+            busy = false;
+        };
+
+        // ── 滚动监听 ──
+        const onScroll = throttle(() => {
+            const y = scrollY;
+            if (cfg.enableWaterfall && y > prevScrollY) loadNext();
+            if (cfg.enableReverse && y < prevScrollY) loadPrev();
+            prevScrollY = y;
+            updateDisplayUrl();
+        }, cfg.scrollThrottle);
+
+        if (cfg.enableWaterfall || cfg.enableReverse) {
+            window.addEventListener('scroll', onScroll, { passive: true });
+            cleanupFns.push(() => window.removeEventListener('scroll', onScroll));
+        }
+
+        // 初始检查：页面已在顶部且有上一页时直接触发一次
+        if (cfg.enableReverse && prevUrl && scrollY <= cfg.reverseThreshold) {
+            setTimeout(() => { if (!loaded.has(urlKey(prevUrl))) loadPrev(); }, 0);
+        }
+
+        // ── 点击拦截 ──
+        const onClick = (e) => {
+            const a = e.target.closest('a');
+            if (!a) return;
+
+            if (a.closest('.nsk-pager')) return;
+
+            if (cfg.enableRefFix && isPost && a.href?.includes('#')) {
+                try {
+                    const lu = new URL(a.href, location.origin);
+                    const lp = lu.pathname.match(/\/post-(\d+)/)?.[1];
+                    const cp = location.pathname.match(/\/post-(\d+)/)?.[1];
+                    if (lp && lp === cp) {
+                        const hash = lu.hash.slice(1);
+                        const target = hash && (document.getElementById(hash) || document.querySelector(`a[name="${hash}"]`)?.parentElement);
+                        if (target) {
+                            e.preventDefault();
+                            e.stopImmediatePropagation();
+                            target.scrollIntoView({ behavior: cfg.smoothScroll ? 'smooth' : 'auto' });
+                            target.style.transition = 'background-color 0.4s ease';
+                            const orig = target.style.backgroundColor;
+                            target.style.backgroundColor = 'rgba(255,152,0,0.2)';
+                            setTimeout(() => {
+                                target.style.backgroundColor = orig;
+                                setTimeout(() => { target.style.transition = ''; }, 400);
+                            }, cfg.highlightDuration);
+                        }
+                    }
+                } catch {}
+            }
+        };
+
+        document.addEventListener('click', onClick, true);
+        cleanupFns.push(() => document.removeEventListener('click', onClick, true));
+    };
+
+    API.register({
+        id: MODULE_ID, name: MODULE_NAME, version: MODULE_VERSION, description: MODULE_DESC,
+
+        render(container) {
+            const cfg = getConfig();
+            const form = API.UI.buildConfigForm(SCHEMA, cfg, (data) => {
+                saveConfig(data); cleanup(); initFeatures();
+                API.showAlert('配置已保存并即时生效！');
+            });
+            const fs = document.createElement('fieldset');
+            fs.innerHTML = `<h2 style="margin:10px 0;border-bottom:2px solid #2ea44f;padding-bottom:8px;">${MODULE_NAME} 设置</h2>`;
+            fs.appendChild(form);
+            const btn = document.createElement('button');
+            btn.textContent = '清除页面缓存'; btn.className = 'btn';
+            btn.style.cssText = 'margin-top:12px;padding:6px 16px;font-size:13px;';
+            btn.addEventListener('click', async () => { await PageCache.clear(); API.showAlert('缓存已清除'); });
+            fs.appendChild(btn);
+            container.appendChild(fs);
+        },
+
+        execute() { initFeatures(); },
+        onToggle(on) { if (on) initFeatures(); else cleanup(); }
+    });
+})();
