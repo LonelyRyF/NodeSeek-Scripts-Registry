@@ -4,10 +4,12 @@
 
 ## 目录结构
 
-```
+```text
 NodeSeek-Scripts-Registry/
-├── registry.json        # 云端脚本索引（子模块）
-├── version.json         # 基座版本信息（自动更新）
+├── registry.json        # 云端脚本索引
+├── version.json         # 基座版本信息
+├── map.json             # 脚本文件映射
+├── framework/           # 基座相关文件
 ├── scripts/             # 脚本文件目录，按 <脚本ID>/<版本号>.user.js 存放
 └── README.md
 ```
@@ -18,9 +20,9 @@ NodeSeek-Scripts-Registry/
 
 其余子模块均依赖基座运行。基座内置脚本市场，安装后可直接在 NodeSeek 设置页管理所有子模块。
 
-**[点击安装 NodeSeek Setting Framework v4.8](https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-ui-framework/4.8.user.js)**
+**[点击安装 NodeSeek UI 基座 v5.0](https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/framework/nodeseek.user.js)**
 
-安装基座后，进入 NodeSeek 设置页 → 「脚本市场」即可浏览并安装所有子模块。
+安装基座后，进入 NodeSeek 设置页的脚本相关面板，即可浏览、安装和管理所有子模块。
 
 ---
 
@@ -28,162 +30,270 @@ NodeSeek-Scripts-Registry/
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 或 [Violentmonkey](https://violentmonkey.github.io/)
 2. 先安装上方 **基座脚本**
-3. 进入 [nodeseek.com/setting](https://www.nodeseek.com/setting) → 「脚本市场」安装子模块
-4. 子模块也可通过 `registry.json` 中的 `url` 直接安装
+3. 进入 [nodeseek.com/setting](https://www.nodeseek.com/setting)
+4. 在脚本管理/脚本市场中安装或管理子模块
+5. 子模块也可通过 `registry.json` 中的 `url` 直接安装
 
 ---
 
-## 子脚本开发文档（v4.8）
+## 子脚本开发文档（v5.0）
 
-### 架构概述
-
-```
-基座 (nodeseek.user.js) [运行于 Tampermonkey 沙盒, 拥有极高权限]
-├── window.NodeSeekUI ← 暴露给原生网页(Page Context)的桥梁 API
-│   ├── .UI             ← UI 组件库 (支持高级表单)
-│   ├── .register()     ← 注册模块与生命周期钩子
-│   ├── .getConfig()    ← 配置自动合并器
-│   ├── .addStyle()     ← 穿透 CSP 限制注入 CSS
-│   ├── .request()      ← 穿透 CORS 限制发起跨域请求
-│   └── .waitForElement() ← SPA 异步 DOM 监听
-│
-└── 脚本市场 (registry.json)
-    └── 子脚本 (云端加载) ← 注入原生网页，通过生命周期钩子由基座调度
-```
-
-### 子脚本生命周期
-
-从 v4.7 开始，基座**不再物理拦截**禁用脚本的注入。所有已安装的脚本都会被加载，但核心逻辑由基座统一调度。
-
-**加载时序：**
-1. 基座读取本地存储的脚本代码，并全部注入到页面
-2. 子脚本在全局作用域**仅作变量声明**，并立即调用 `API.register()` 注册自己
-3. 基座接收到注册信息，挂载 UI 面板
-4. 基座判断该模块的状态：
-   - **若为启用状态**：基座主动调用子脚本提供的 `execute` 钩子，执行核心业务
-   - **若为禁用状态**：基座跳过执行，仅在管理中心保留其 UI 界面
-
-> **⚠️ 绝对禁忌：** 严禁在脚本的全局作用域直接运行业务代码（如操作 DOM、发起请求）。所有业务逻辑**必须**包裹在 `execute` 或 `onToggle` 钩子中。
-
-### 注册面板与钩子
-
-```javascript
-window.NodeSeekUI.register({
-  id: 'ns_my_script',   // 唯一 ID（规范：统一使用下划线 _）
-  name: '我的脚本',     // Tab 显示名称
-  version: '1.0.0',
-  description: '功能描述',
-
-  // 【UI 渲染】每次切换到该面板时触发
-  render: function(container) {
-    container.innerHTML = '<h2>设置面板</h2>';
-  },
-
-  // 【核心启动】基座判定模块已开启时触发（替代原先的全局自执行）
-  execute: function() {
-    API.addStyle('.hide { display:none; }', 'my_style');
-  },
-
-  // 【热切换】用户在管理中心手动点击「启用/禁用」时触发
-  onToggle: function(enabled) {
-    if (enabled) API.addStyle('.hide { display:none; }', 'my_style');
-    else API.removeStyle('my_style');
-  }
-});
-```
-
-### 增强版 API 接口
-
-```javascript
-// 数据与配置
-API.store(moduleId, key, value);
-const val = API.load(moduleId, key, defaultValue);
-const config = API.getConfig(MODULE_ID, SCHEMA); // 自动合并默认配置
-
-// 沙盒穿透（DOM 与网络）
-API.addStyle('.btn { color: red; }', 'my_custom_style'); // 穿透 CSP
-API.removeStyle('my_custom_style');
-const res = await API.request({ url: 'https://...', method: 'GET' }); // 穿透 CORS
-const el = await API.waitForElement('.comment-textarea', 10000); // 异步等待元素
-
-// UI 交互
-API.showAlert('操作成功');
-```
-
-### Schema 高级表单
-
-使用 `UI.buildConfigForm()` 通过 Schema 声明快速生成配置表单。
-
-**基础类型：** `text` / `number` / `select` / `switch` / `list`
-
-**高级对象列表 (`object_list`)：** 带折叠面板、增删改查和内联动作按钮的卡片组。
-
-```javascript
-{
-  key: 'customRules',
-  type: 'object_list',
-  label: '自定义规则',
-  placeholder: '添加新规则',
-  summaryKey: 'name',
-  template: [
-    { key: 'name', label: '名称', type: 'text', default: '新规则' },
-    {
-      key: 'url', label: '目标链接', type: 'text',
-      actions: [{
-        label: '预览测试',
-        onClick: (item, val, handleChange) => window.open(val, '_blank')
-      }]
-    }
-  ]
-}
-```
-
-### 开发规范
-
-| 规范点 | 说明 |
-|--------|------|
-| **主键命名规范** | 模块 ID 推荐使用**下划线 `_`** 命名（如 `ns_privacy_guard`），基座会自动将 `-` 转为 `_` |
-| **严禁全局执行** | 不允许在全局作用域直接执行 DOM 操作，必须放入 `execute` 钩子中 |
-| **使用 `addStyle`** | 严禁使用 `document.createElement('style')`，请统一使用 `API.addStyle` |
-| **无需处理转义** | v4.8 已在底层解决反引号和模板插值的注入报错，可放心使用 ES6 语法 |
-
-### 完整示例
+### 脚本模板
 
 ```javascript
 (function() {
+  'use strict';
+
   const API = window.NodeSeekUI;
+  if (!API) return;
+
   const MODULE_ID = 'ns_my_script';
-  const STYLE_ID = MODULE_ID + '_css';
-
-  const SCHEMA = [
-    { key: 'blurLevel', type: 'number', label: '模糊强度', default: 8 }
-  ];
-
-  function applyEffect() {
-    const cfg = API.getConfig(MODULE_ID, SCHEMA);
-    API.addStyle(`.avatar { filter: blur(${cfg.blurLevel}px) !important; }`, STYLE_ID);
-  }
+  const log = API.logger.scope(MODULE_ID);
 
   API.register({
     id: MODULE_ID,
     name: '我的脚本',
     version: '1.0.0',
     description: '功能描述',
-    render: function(container) {
-      const form = API.UI.buildConfigForm(SCHEMA, API.getConfig(MODULE_ID, SCHEMA), function(newConfig) {
-        API.store(MODULE_ID, 'config', newConfig);
-        applyEffect();
-      });
-      container.appendChild(form);
+    author: '作者名',
+    minBaseVersion: '5.0',
+
+    render(container) {
+      container.innerHTML = '';
+      container.appendChild(API.UI._el('div', { text: '设置面板' }));
     },
-    execute: function() { applyEffect(); },
-    onToggle: function(enabled) {
-      if (enabled) applyEffect();
-      else API.removeStyle(STYLE_ID);
+
+    execute() {
+      log.info('脚本启动');
+    },
+
+    onEnable() {
+      log.info('模块已启用');
+    },
+
+    onDisable() {
+      log.info('模块已禁用');
+      API.removeStyle(MODULE_ID + '_css');
     }
   });
 })();
 ```
+
+### 生命周期
+
+| 钩子 | 触发时机 | 说明 |
+|------|---------|------|
+| `execute` | 页面加载且模块为启用状态 | 核心业务入口 |
+| `render(container)` | 切换到该面板时 | 设置 UI 渲染 |
+| `onEnable()` | 管理中心手动启用 | 恢复状态、重新挂载 |
+| `onDisable()` | 管理中心手动禁用 | 清理副作用 |
+| `onToggle(enabled)` | 兼容旧写法 | 与 `onEnable/onDisable` 互斥 |
+| `canEnable()` | 点击启用前 | 返回 `false` 或字符串可阻止启用 |
+
+**执行顺序：**
+
+1. 页面加载时调用 `register()`
+2. 基座写回元数据并关联本地安装信息
+3. 如果模块已启用，则调用 `execute()`
+4. 启用模块时调用 `canEnable()` / `onEnable()`
+5. 禁用模块时调用 `onDisable()` 并执行已注册的清理回调
+
+> **绝对禁忌：** 严禁在全局作用域直接运行业务代码。所有 DOM 操作、请求、监听和副作用都必须放在 `execute`、`onEnable`、`onDisable` 或 `onToggle` 中。
+
+### 注册配置参考
+
+```javascript
+API.register({
+  id: 'ns_my_script',
+  name: '我的脚本',
+  version: '1.0.0',
+  description: '功能描述',
+  author: '作者名',
+  minBaseVersion: '5.0',
+
+  render(container) {
+    container.innerHTML = '';
+  },
+
+  execute() {},
+  onEnable() {},
+  onDisable() {},
+  canEnable() { return true; }
+});
+```
+
+### 数据存储
+
+```javascript
+API.store('ns_my_script', 'config', { level: 5, enabled: true });
+const cfg = API.load('ns_my_script', 'config', {});
+const merged = API.getConfig('ns_my_script', SCHEMA);
+```
+
+- 数据统一通过 `API.store/load/getConfig` 读写
+- 不要直接使用 `GM_getValue/GM_setValue`
+- `getConfig` 会自动合并 Schema 默认值，并带有缓存
+
+### 样式注入
+
+```javascript
+API.addStyle(`
+  .ns-my-card { background: var(--glass-color); }
+`, 'ns_my_script_css');
+
+API.removeStyle('ns_my_script_css');
+```
+
+- 严禁使用 `document.createElement('style')`
+- 样式 ID 建议使用 `moduleId + '_css'`
+- 类名请加命名空间前缀：`ns-*` 或 `nskx-*`
+- 在 `onDisable()` 中务必清理样式
+
+### 网络请求
+
+```javascript
+const res = await API.request({
+  url: 'https://api.github.com/users/octocat',
+  method: 'GET',
+  headers: { Accept: 'application/json' },
+  timeout: 10000
+});
+
+if (res.ok) {
+  const data = await res.json();
+  console.log(data);
+}
+```
+
+### DOM 监听
+
+```javascript
+const el = await API.waitForElement('.comment-textarea', 10000);
+const items = await API.waitForElement('.post-list-item', 10000, true);
+```
+
+### 页面识别
+
+```javascript
+const page = API.detectPage();
+
+if (page.isPost) {
+  console.log(page.postId);
+}
+
+const user = window.__config__?.user;
+const postId = window.__config__?.postData?.postId;
+```
+
+### 清理机制
+
+```javascript
+execute() {
+  const observer = new MutationObserver(() => {});
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  API.onCleanup('ns_my_script', () => {
+    observer.disconnect();
+    API.removeStyle('ns_my_script_css');
+  });
+}
+```
+
+### 事件总线
+
+```javascript
+API.on('base:page-navigated', ({ hash }) => {
+  console.log(hash);
+});
+
+API.emit('my_module:data-ready', { data: [1, 2, 3] });
+```
+
+### 日志系统
+
+```javascript
+const log = API.logger.scope('ns_my_script');
+
+log.info('初始化完成');
+log.warn('配置缺失');
+log.error('请求失败', { status: 404 });
+log.debug('调试信息');
+```
+
+日志可在 `/setting#ns_logs` 中查看、过滤、导出和清空。
+
+### UI 组件库
+
+```javascript
+const UI = API.UI;
+
+const input = UI.createInput({
+  value: '初始值',
+  placeholder: '请输入...',
+  onChange: (val) => console.log(val)
+});
+
+const btn = UI.createButton({
+  text: '保存',
+  type: 'primary',
+  onClick: () => console.log('clicked')
+});
+```
+
+### Schema 表单生成器
+
+```javascript
+const SCHEMA = [
+  {
+    key: 'enabled',
+    type: 'switch',
+    label: '启用功能',
+    default: true
+  },
+  {
+    key: 'blurLevel',
+    type: 'number',
+    label: '模糊强度',
+    min: 1,
+    max: 20,
+    step: 1,
+    default: 8
+  }
+];
+
+render(container) {
+  container.innerHTML = '';
+  const cfg = API.getConfig(MODULE_ID, SCHEMA);
+  container.appendChild(
+    API.UI.buildConfigForm(SCHEMA, cfg, (newCfg) => {
+      API.store(MODULE_ID, 'config', newCfg);
+    })
+  );
+}
+```
+
+支持的主要字段类型：`text`、`number`、`select`、`switch`、`list`、`object_list`。
+
+### 开发规范
+
+- 模块 ID 一律使用下划线命名法：`ns_privacy_guard`
+- 所有业务逻辑放进 `execute` / `onEnable` / `onDisable` / `onToggle`
+- 样式注入使用 `API.addStyle/removeStyle`
+- 页面信息优先从 `window.__config__` 和 `API.detectPage()` 获取
+- 异步 DOM 使用 `API.waitForElement()`，不要盲轮询
+- 所有外部副作用都注册 `API.onCleanup()`
+- 两者不能同时用：`onToggle` 与 `onEnable/onDisable`
+- 建议声明 `minBaseVersion: '5.0'`
+
+### v4.9 → v5.0 升级要点
+
+- 新增统一存储层 `Storage`
+- 新增统一网络层 `NetClient`
+- 新增 `ns_compat`、`ns_logs` 系统面板
+- `request()` 返回统一响应对象
+- `waitForElement()` 支持 `all` 模式
+- 新增 `Logger` 与 `EventBus`
+- 本地安装完全依赖 `register()`
 
 ---
 
