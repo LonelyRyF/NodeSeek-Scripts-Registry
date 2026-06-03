@@ -1,12 +1,12 @@
 {
-  "ns-pangu": "LonelyRyF",
-  "ns-privacy-guard": "LonelyRyF",
-  "ns-sticker": "LonelyRyF",
-  "ns-user-badge": "LonelyRyF",
-  "ns_waterfall": "LonelyRyF",
-  "ns_exact_time": "LonelyRyF",
-  "ns_link_cleaner": "LonelyRyF",
-  "ns_auto_sign": "LonelyRyF",
-  "ns_beautify": "LonelyRyF",
-  "ns_conversation": "LonelyRyF"
+  "pangu": "LonelyRyF",
+  "privacy_guard": "LonelyRyF",
+  "sticker": "LonelyRyF",
+  "user_badge": "LonelyRyF",
+  "waterfall": "LonelyRyF",
+  "exact_time": "LonelyRyF",
+  "link_cleaner": "LonelyRyF",
+  "auto_sign": "LonelyRyF",
+  "beautify": "LonelyRyF",
+  "conversation": "LonelyRyF"
 }

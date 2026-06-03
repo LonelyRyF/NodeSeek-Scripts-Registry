@@ -1,86 +1,86 @@
 {
   "scripts": [
     {
-      "id": "ns-pangu",
+      "id": "pangu",
       "name": "盘古排版助手",
       "version": "3.2.0",
       "description": "自动在中英文之间添加空格。采用提取-占位-还原架构，完美保护 Markdown 语法及 @提及。",
       "author": "浅霖",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-pangu/3.2.0.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/pangu/3.2.0.user.js"
     },
     {
-      "id": "ns-privacy-guard",
+      "id": "privacy_guard",
       "name": "隐私保护",
       "version": "1.4.0",
       "description": "模糊或替换帖子列表及详情页中的用户头像和名称",
       "author": "浅霖",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-privacy-guard/1.4.0.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/privacy_guard/1.4.0.user.js"
     },
     {
-      "id": "ns-sticker",
+      "id": "sticker",
       "name": "自定义表情包",
       "version": "16.2.0",
       "description": "在回复编辑器中插入自定义表情包图片，支持多分组管理。",
       "author": "浅霖",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-sticker/16.2.0.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/sticker/16.2.0.user.js"
     },
     {
-      "id": "ns-user-badge",
+      "id": "user_badge",
       "name": "用户信息徽章",
       "version": "0.4.3",
       "description": "在帖子作者昵称旁显示等级和加入天数，完美支持暗黑模式，可自定义颜色与展示项。",
       "author": "浅霖",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns-user-badge/0.4.3.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/user_badge/0.4.3.user.js"
     },
     {
-      "id": "ns_waterfall",
+      "id": "waterfall",
       "name": "瀑布流 & 引用跳转",
       "version": "2.0.3",
       "description": "提前预加载下一页数据，实现无缝瀑布流；修复跨页引用评论导致页面刷新的问题。",
       "author": "浅霖",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_waterfall/2.0.3.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/waterfall/2.0.3.user.js"
     },
     {
-      "id": "ns_exact_time",
+      "id": "exact_time",
       "name": "精确时间显示",
       "description": "将页面上的相对时间（如“3小时前”）自动替换为悬停提示中的完整绝对时间。",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "author": "_RyF",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_exact_time/1.0.0.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/exact_time/2.0.0.user.js"
     },
     {
-      "id": "ns_link_cleaner",
+      "id": "link_cleaner",
       "name": "链接清理器",
       "description": "净化 NodeSeek/DeepFlood 跳转链接为直接链接",
       "version": "1.3.1",
       "author": "_RyF",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_link_cleaner/1.3.1.user.js",
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/link_cleaner/1.3.1.user.js",
       "update_log": "我不到啊"
     },
     {
-      "id": "ns_auto_sign",
+      "id": "auto_sign",
       "name": "自动签到",
       "description": "每天首次访问网页时自动完成签到，支持碰运气模式。原生请求防拦截。",
       "version": "1.0.3",
       "author": "_RyF",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_auto_sign/1.0.3.user.js"
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/auto_sign/1.0.3.user.js"
     },
     {
-      "id": "ns_beautify",
+      "id": "beautify",
       "name": "全站动态美化引擎",
-      "description": "V2自由版：新增侧边栏专属保护机制，确保在透明度极低时侧边栏依然坚挺清晰。",
-      "version": "2.3.0",
+      "description": "全站动态美化，支持背景、毛玻璃、头像、滚动条、鼠标指针与平滑效果配置。",
+      "version": "3.0.1",
       "author": "_RyF",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_beautify/2.3.0.user.js",
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/beautify/3.0.1.user.js",
       "update_log": "算是一个完结了吧  小瑕疵没精力修了\n\n**重投一下**"
     },
     {
-      "id": "ns_conversation",
+      "id": "conversation",
       "name": "查看对话链",
       "description": "在评论下添加对话入口，查看对话链",
       "version": "1.3.1",
       "author": "_RyF",
-      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/ns_conversation/1.3.1.user.js",
+      "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/conversation/1.3.1.user.js",
       "update_log": "窄屏默认用按钮换行"
     }
   ]
