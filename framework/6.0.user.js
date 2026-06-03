@@ -2,8 +2,8 @@
 // @name         NodeSeek Setting Framework (UI基座)
 // @namespace    http://tampermonkey.net/
 // @version      6.0
-// @description  NodeSeek / DeepFlood 扩展基座（React + MUI 重构版）。声明式模块契约、Shadow DOM 隔离 UI、脚本市场、自更新。
-// @author       浅霖
+// @description  NodeSeek / DeepFlood 扩展基座。
+// @author       _RyF
 // @match        https://www.nodeseek.com/*
 // @match        https://www.deepflood.com/*
 // @grant        GM_getValue

@@ -37,7 +37,7 @@
       "name": "瀑布流 & 引用跳转",
       "version": "2.0.3",
       "description": "提前预加载下一页数据，实现无缝瀑布流；修复跨页引用评论导致页面刷新的问题。",
-      "author": "浅霖",
+      "author": "_RyF",
       "url": "https://raw.githubusercontent.com/LonelyRyF/NodeSeek-Scripts-Registry/master/scripts/waterfall/2.0.3.user.js"
     },
     {
