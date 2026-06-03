@@ -193,9 +193,9 @@
 
         onConfigChange: function(newData) {
             API.store(MODULE_ID, 'config', newData);
-			
-            if (enabled) {
-				removePrivacy();
+
+            if (API.isEnabled(MODULE_ID)) {
+                removePrivacy();
                 applyPrivacy();
             }
         }
